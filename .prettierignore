@@ -1,0 +1,24 @@
+# Build output
+dist
+build
+
+# Dependencies
+node_modules
+
+# Coverage reports
+coverage
+
+# Environment files
+.env*
+!.env.example
+
+# Cache
+.cache
+.eslintcache
+
+# Log files
+*.log
+
+# Editor directories
+.idea
+.vscode 

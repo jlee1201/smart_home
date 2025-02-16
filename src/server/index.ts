@@ -1,31 +1,34 @@
 import express from 'express';
 import path from 'path';
 import { createServer } from 'http';
-import { graphqlHTTP } from 'express-graphql';
-import { schema, root } from './schema';
+import { createHandler } from 'graphql-http/lib/use/express';
+import { root, schema } from './schema';
 import { config } from './config';
 import { setupWebSocketServer } from './websocket';
 
 const app = express();
 const httpServer = createServer(app);
 const { port } = config.server;
-const { path: graphqlPath, enablePlayground } = config.graphql;
+const { path: graphqlPath } = config.graphql;
 
 setupWebSocketServer(httpServer);
 
 // GraphQL endpoint
-app.use(graphqlPath, graphqlHTTP({
-  schema: schema,
+app.use(graphqlPath, createHandler({
+  schema,
   rootValue: root,
-  graphiql: enablePlayground,
+  context: () => (
+    {}
+  ),
+  validationRules: [],
 }));
 
 // Serve static files from the React app
-app.use(express.static(path.join(__dirname, '../../dist')));
+app.use(express.static(path.join(__dirname, '../../dist/client')));
 
 // Handle React routing, return all requests to React app
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../../dist/index.html'));
+app.get('*', (_req, res) => {
+  res.sendFile(path.join(__dirname, '../../dist/client/index.html'));
 });
 
 httpServer.listen(port, () => {

@@ -1,8 +1,8 @@
 import dotenv from 'dotenv';
-import path from 'path';
+import { resolve } from 'path';
 
 // Load .env file
-dotenv.config({ path: path.resolve(__dirname, '../.env') });
+dotenv.config({ path: resolve(__dirname, '../../.env') });
 
 interface Config {
   server: {
@@ -16,6 +16,7 @@ interface Config {
   graphql: {
     path: string;
     enablePlayground: boolean;
+    allowIntrospection: boolean
   };
 }
 
@@ -31,5 +32,6 @@ export const config: Config = {
   graphql: {
     path: process.env.GRAPHQL_PATH || '/graphql',
     enablePlayground: process.env.ENABLE_GRAPHQL_PLAYGROUND === 'true',
+    allowIntrospection: process.env.ALLOW_GRAPHQL_INTROSPECTION === 'true',
   },
-}; 
+};

@@ -1,21 +1,22 @@
 import { gql, useQuery, useSubscription } from '@apollo/client';
 import { Link, Route, Routes } from 'react-router-dom';
-import { InputPage } from './pages/InputPage';
+import { HomePage } from '@/pages/HomePage';
+import { InputPage } from '@/pages/InputPage';
 
 const HELLO_QUERY = gql`
-    query GetHello {
-        hello
-        currentInput
-    }
+  query GetHello {
+    hello
+    currentInput
+  }
 `;
 
 const INPUT_SUBSCRIPTION = gql`
-    subscription OnInputChanged {
-        inputChanged
-    }
+  subscription OnInputChanged {
+    inputChanged
+  }
 `;
 
-function App() {
+export default function App() {
   const { loading, error, data } = useQuery(HELLO_QUERY);
   const { data: subscriptionData } = useSubscription(INPUT_SUBSCRIPTION);
 
@@ -31,19 +32,9 @@ function App() {
       </nav>
 
       <Routes>
-        <Route
-          path="/" element={
-          <div>
-            <h1>TypeScript React App with GraphQL</h1>
-            <p>Message from server: {data.hello}</p>
-            <p>Current input value: {currentInput}</p>
-          </div>
-        }
-        />
+        <Route path="/" element={<HomePage message={data.hello} currentInput={currentInput} />} />
         <Route path="/input" element={<InputPage />} />
       </Routes>
     </div>
   );
-}
-
-export default App;
+} 

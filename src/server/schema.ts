@@ -1,3 +1,5 @@
+// noinspection JSUnusedGlobalSymbols
+
 import { buildSchema } from 'graphql';
 
 export const schema = buildSchema(`
@@ -35,4 +37,4 @@ export const root = {
 
 export const publishInputChange = (value: string) => {
   subscribers.forEach(fn => fn(value));
-}; 
+};

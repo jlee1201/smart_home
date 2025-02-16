@@ -136,3 +136,11 @@ dist
 
 # But keep examples
 !.env.example
+
+# Editor
+.vscode/*
+!.vscode/settings.json
+
+# Cache files
+.eslintcache
+.prettier-cache

@@ -1,3 +1,7 @@
 {
-  "extends": "./src/client/tsconfig.json"
+  "files": [],
+  "references": [
+    { "path": "./packages/client" },
+    { "path": "./packages/server" }
+  ]
 }

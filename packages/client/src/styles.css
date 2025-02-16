@@ -1,0 +1,30 @@
+.App {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+nav {
+  margin-bottom: 2rem;
+}
+
+nav a {
+  margin-right: 1rem;
+  color: #0066cc;
+  text-decoration: none;
+}
+
+nav a:hover {
+  text-decoration: underline;
+}
+
+.HomePage, .InputPage {
+  padding: 1rem;
+}
+
+input {
+  padding: 0.5rem;
+  font-size: 1rem;
+  width: 100%;
+  max-width: 300px;
+} 
