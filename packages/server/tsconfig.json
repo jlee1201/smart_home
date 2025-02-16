@@ -3,12 +3,51 @@
   "compilerOptions": {
     "module": "ESNext",
     "moduleResolution": "bundler",
+    "target": "ES2020",
     "outDir": "./dist",
     "rootDir": "./src",
-    "lib": ["ES2020"],
-    "types": ["node", "jest"],
-    "noEmit": true
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    },
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "strictBindCallApply": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "allowUnreachableCode": false,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "allowJs": false,
+    "sourceMap": true,
+    "declaration": true,
+    "declarationMap": true,
+    "lib": [
+      "ES2020"
+    ],
+    "types": [
+      "node",
+      "jest"
+    ],
+    "noEmit": false,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
+    "importsNotUsedAsValues": "error",
+    "verbatimModuleSyntax": true
   },
-  "include": ["src"],
-  "exclude": ["**/*.test.ts"]
+  "include": [
+    "src/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/*.test.ts",
+    "**/__tests__/*",
+    "**/__mocks__/*"
+  ]
 } 

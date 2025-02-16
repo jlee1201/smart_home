@@ -16,7 +16,7 @@ const INPUT_SUBSCRIPTION = gql`
   }
 `;
 
-export default function App() {
+export function App() {
   const { loading, error, data } = useQuery(HELLO_QUERY, {
     onError: (error) => {
       console.error('Query error:', error);

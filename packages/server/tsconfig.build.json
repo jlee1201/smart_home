@@ -1,11 +1,18 @@
 {
   "extends": "./tsconfig.json",
-  "compilerOptions": {
-    "noEmit": false,
-    "sourceMap": true
-  },
   "exclude": [
+    "node_modules",
+    "dist",
     "**/*.test.ts",
+    "**/__tests__/*",
+    "**/__mocks__/*",
     "src/test/**"
-  ]
+  ],
+  "compilerOptions": {
+    "sourceMap": true,
+    "inlineSourceMap": false,
+    "inlineSources": false,
+    "declarationMap": true,
+    "noEmit": false
+  }
 } 

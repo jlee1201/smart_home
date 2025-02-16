@@ -11,7 +11,7 @@ import { GraphQLWsLink } from '@apollo/client/link/subscriptions';
 import { createClient } from 'graphql-ws';
 import { getMainDefinition } from '@apollo/client/utilities';
 import { BrowserRouter } from 'react-router-dom';
-import App from './App';
+import { App } from './App';
 
 const httpLink = new HttpLink({
   uri: '/graphql',
@@ -35,7 +35,7 @@ const splitLink = split(
   httpLink
 );
 
-const client = new ApolloClient({
+export const client = new ApolloClient({
   link: splitLink,
   cache: new InMemoryCache(),
 });
