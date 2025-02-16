@@ -17,4 +17,4 @@ export const productionConfig: Config = {
     level: 'info',
     pretty: false,
   },
-}; 
+};

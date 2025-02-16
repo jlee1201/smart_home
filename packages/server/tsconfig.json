@@ -8,7 +8,9 @@
     "rootDir": "./src",
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": [
+        "src/*"
+      ]
     },
     "strict": true,
     "noImplicitAny": true,
@@ -37,7 +39,6 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "isolatedModules": true,
-    "importsNotUsedAsValues": "error",
     "verbatimModuleSyntax": true
   },
   "include": [
@@ -50,4 +51,4 @@
     "**/__tests__/*",
     "**/__mocks__/*"
   ]
-} 
+}

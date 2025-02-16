@@ -26,22 +26,19 @@ describe('Resolvers', () => {
   });
 
   it('should update input value', async () => {
-    const response = await testServer.executeOperation(
-      createOperation(TEST_MUTATION),
-      { value: 'test input' }
-    );
+    const response = await testServer.executeOperation(createOperation(TEST_MUTATION), {
+      value: 'test input',
+    });
 
     expectValidResult(response, {
       updateInput: 'test input',
     });
 
     // Verify current input was updated
-    const currentInputResponse = await testServer.executeOperation(
-      createOperation(TEST_QUERY)
-    );
+    const currentInputResponse = await testServer.executeOperation(createOperation(TEST_QUERY));
 
     expectValidResult(currentInputResponse, {
       currentInput: 'test input',
     });
   });
-}); 
+});

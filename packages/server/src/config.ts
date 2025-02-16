@@ -9,9 +9,7 @@ dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
 
 const nodeEnv = process.env.NODE_ENV || 'development';
 
-export const config: Config = nodeEnv === 'production' 
-  ? productionConfig 
-  : developmentConfig;
+export const config: Config = nodeEnv === 'production' ? productionConfig : developmentConfig;
 
 // Allow environment variables to override config
 export function overrideConfigFromEnv(currentConfig: Config): Config {
@@ -23,11 +21,13 @@ export function overrideConfigFromEnv(currentConfig: Config): Config {
       graphql: {
         ...currentConfig.server.graphql,
         path: process.env.GRAPHQL_PATH || currentConfig.server.graphql.path,
-        playground: process.env.ENABLE_GRAPHQL_PLAYGROUND === 'true' || currentConfig.server.graphql.playground,
+        playground:
+          process.env.ENABLE_GRAPHQL_PLAYGROUND === 'true' ||
+          currentConfig.server.graphql.playground,
       },
     },
   };
 }
 
 // Apply environment overrides
-export default overrideConfigFromEnv(config); 
+export default overrideConfigFromEnv(config);

@@ -24,4 +24,4 @@ describe('Subscriptions', () => {
       inputChanged: 'new value',
     });
   });
-}); 
+});

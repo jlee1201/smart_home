@@ -17,4 +17,4 @@ export const developmentConfig: Config = {
     level: 'debug',
     pretty: true,
   },
-}; 
+};

@@ -69,14 +69,14 @@ async function startServer() {
     });
   }
 
-  await new Promise<void>(resolve => 
-    httpServer.listen(config.server.port, resolve)
-  );
+  await new Promise<void>(resolve => httpServer.listen(config.server.port, resolve));
 
-  logger.info(`🚀 Server ready at http://localhost:${config.server.port}${config.server.graphql.path}`);
+  logger.info(
+    `🚀 Server ready at http://localhost:${config.server.port}${config.server.graphql.path}`
+  );
 }
 
 startServer().catch(err => {
   logger.error('Failed to start server:', { error: err.message });
   process.exit(1);
-}); 
+});

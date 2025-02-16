@@ -11,4 +11,4 @@ export function HomePage({ message, currentInput }: HomePageProps) {
       <p>Current input value: {currentInput}</p>
     </div>
   );
-} 
+}

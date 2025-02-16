@@ -52,7 +52,9 @@ describe('Error Handling', () => {
       });
       fail('Should have thrown an error');
     } catch (error: any) {
-      expect(error.message).toContain('Field "updateInput" argument "value" of type "String!" is required');
+      expect(error.message).toContain(
+        'Field "updateInput" argument "value" of type "String!" is required'
+      );
     }
   });
 });

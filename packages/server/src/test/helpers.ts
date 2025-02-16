@@ -24,4 +24,4 @@ export const TEST_QUERY = gql`
   query GetCurrentInput {
     currentInput
   }
-`; 
+`;

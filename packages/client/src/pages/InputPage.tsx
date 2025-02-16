@@ -11,7 +11,7 @@ export function InputPage() {
   const [inputValue, setInputValue] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [updateInput] = useMutation(UPDATE_INPUT, {
-    onError: (error) => {
+    onError: error => {
       setError(error.message);
     },
   });
@@ -22,9 +22,9 @@ export function InputPage() {
     setError(null);
 
     try {
-      await updateInput({ 
+      await updateInput({
         variables: { value },
-        onError: (error) => {
+        onError: error => {
           setError(error.message);
         },
       });
@@ -51,4 +51,4 @@ export function InputPage() {
       )}
     </div>
   );
-} 
+}

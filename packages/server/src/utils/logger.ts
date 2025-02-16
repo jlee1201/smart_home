@@ -40,4 +40,4 @@ export const logger = {
       console.error(formatMessage('error', message, meta));
     }
   },
-}; 
+};

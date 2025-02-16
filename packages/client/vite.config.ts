@@ -25,4 +25,4 @@ export const viteConfig = defineConfig(({ mode }) => {
   };
 });
 
-export default viteConfig; 
+export default viteConfig;

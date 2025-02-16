@@ -11,4 +11,4 @@ export const typeDefs = `#graphql
   type Subscription {
     inputChanged: String
   }
-`; 
+`;

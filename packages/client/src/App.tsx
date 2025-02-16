@@ -18,19 +18,19 @@ const INPUT_SUBSCRIPTION = gql`
 
 export function App() {
   const { loading, error, data } = useQuery(HELLO_QUERY, {
-    onError: (error) => {
+    onError: error => {
       console.error('Query error:', error);
     },
   });
 
   const { data: subscriptionData, error: subscriptionError } = useSubscription(INPUT_SUBSCRIPTION, {
-    onError: (error) => {
+    onError: error => {
       console.error('Subscription error:', error);
     },
   });
 
   if (loading) return <div role="status">Loading...</div>;
-  
+
   if (error) {
     return (
       <div role="alert" className="error-container">
@@ -56,12 +56,9 @@ export function App() {
       )}
 
       <Routes>
-        <Route 
-          path="/" 
-          element={<HomePage message={data.hello} currentInput={currentInput} />} 
-        />
+        <Route path="/" element={<HomePage message={data.hello} currentInput={currentInput} />} />
         <Route path="/input" element={<InputPage />} />
       </Routes>
     </div>
   );
-} 
+}

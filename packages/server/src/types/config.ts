@@ -15,4 +15,4 @@ export interface Config {
     level: 'debug' | 'info' | 'warn' | 'error';
     pretty: boolean;
   };
-} 
+}

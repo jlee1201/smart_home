@@ -1,12 +1,6 @@
 import './styles.css';
 import { createRoot } from 'react-dom/client';
-import {
-  ApolloClient,
-  InMemoryCache,
-  ApolloProvider,
-  split,
-  HttpLink,
-} from '@apollo/client';
+import { ApolloClient, InMemoryCache, ApolloProvider, split, HttpLink } from '@apollo/client';
 import { GraphQLWsLink } from '@apollo/client/link/subscriptions';
 import { createClient } from 'graphql-ws';
 import { getMainDefinition } from '@apollo/client/utilities';
@@ -26,10 +20,7 @@ const wsLink = new GraphQLWsLink(
 const splitLink = split(
   ({ query }) => {
     const definition = getMainDefinition(query);
-    return (
-      definition.kind === 'OperationDefinition' &&
-      definition.operation === 'subscription'
-    );
+    return definition.kind === 'OperationDefinition' && definition.operation === 'subscription';
   },
   wsLink,
   httpLink
@@ -50,4 +41,4 @@ root.render(
       <App />
     </BrowserRouter>
   </ApolloProvider>
-); 
+);
