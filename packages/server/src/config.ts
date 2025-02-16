@@ -1,8 +1,8 @@
-import dotenv from 'dotenv';
-import path from 'path';
+import * as dotenv from 'dotenv';
+import * as path from 'path';
 import { developmentConfig } from './config/development';
 import { productionConfig } from './config/production';
-import { Config } from './types/config';
+import type { Config } from './types/config';
 
 // Load environment variables
 dotenv.config({ path: path.resolve(__dirname, '../../../.env') });

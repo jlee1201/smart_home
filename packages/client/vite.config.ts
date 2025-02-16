@@ -1,12 +1,12 @@
 import { defineConfig, loadEnv } from 'vite';
-import react from '@vitejs/plugin-react';
-import { resolve } from 'path';
+import * as react from '@vitejs/plugin-react';
+import * as path from 'path';
 
 export const viteConfig = defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
 
   return {
-    plugins: [react()],
+    plugins: [react.default()],
     server: {
       port: parseInt(env.VITE_APP_PORT || '3000', 10),
       proxy: {
@@ -19,7 +19,7 @@ export const viteConfig = defineConfig(({ mode }) => {
     },
     resolve: {
       alias: {
-        '@': resolve(__dirname, './src'),
+        '@': path.resolve(__dirname, './src'),
       },
     },
   };

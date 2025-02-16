@@ -1,19 +1,19 @@
 import { createServer } from 'http';
-import express from 'express';
+import * as express from 'express';
 import { ApolloServer } from '@apollo/server';
 import { expressMiddleware } from '@apollo/server/express4';
 import { ApolloServerPluginDrainHttpServer } from '@apollo/server/plugin/drainHttpServer';
 import { WebSocketServer } from 'ws';
 import { useServer } from 'graphql-ws/lib/use/ws';
 import { makeExecutableSchema } from '@graphql-tools/schema';
-import { AddressInfo } from 'net';
+import type { AddressInfo } from 'net';
 import { typeDefs } from '../schema';
 import { resolvers } from '../resolvers';
 import { pubsub } from '../pubsub';
-import cors from 'cors';
+import * as cors from 'cors';
 
 export async function createIntegrationServer() {
-  const app = express();
+  const app = express.default();
   const httpServer = createServer(app);
 
   const schema = makeExecutableSchema({ typeDefs, resolvers });

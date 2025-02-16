@@ -3,5 +3,12 @@
   "references": [
     { "path": "./packages/client" },
     { "path": "./packages/server" }
+  ],
+  "compilerOptions": {
+    "allowJs": true,
+    "resolveJsonModule": true
+  },
+  "include": [
+    ".eslintrc.ts"
   ]
 }

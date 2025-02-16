@@ -22,7 +22,6 @@
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
     "allowUnreachableCode": false,
-    "esModuleInterop": true,
     "resolveJsonModule": true,
     "allowJs": false,
     "sourceMap": true,
@@ -39,7 +38,8 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "isolatedModules": true,
-    "verbatimModuleSyntax": true
+    "verbatimModuleSyntax": true,
+    "allowSyntheticDefaultImports": true
   },
   "include": [
     "src/**/*.ts"
