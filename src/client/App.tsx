@@ -1,22 +1,21 @@
-import { useState, useEffect } from 'react';
+import { useQuery, gql } from '@apollo/client';
 
-interface HelloResponse {
-  message: string;
-}
+const HELLO_QUERY = gql`
+  query GetHello {
+    hello
+  }
+`;
 
 function App() {
-  const [message, setMessage] = useState<string>('');
+  const { loading, error, data } = useQuery(HELLO_QUERY);
 
-  useEffect(() => {
-    fetch('/api/hello')
-      .then((res) => res.json())
-      .then((data: HelloResponse) => setMessage(data.message));
-  }, []);
+  if (loading) return <p>Loading...</p>;
+  if (error) return <p>Error: {error.message}</p>;
 
   return (
     <div className="App">
-      <h1>TypeScript React App</h1>
-      <p>Message from server: {message}</p>
+      <h1>TypeScript React App with GraphQL</h1>
+      <p>Message from server: {data.hello}</p>
     </div>
   );
 }

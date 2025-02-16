@@ -1,5 +1,14 @@
-describe('Server', () => {
-  it('should pass a simple test', () => {
-    expect(1 + 1).toBe(2);
+import { schema, root } from '../schema';
+import { graphql } from 'graphql';
+
+describe('GraphQL Schema', () => {
+  it('should return hello message', async () => {
+    const query = '{ hello }';
+    const result = await graphql({
+      schema,
+      source: query,
+      rootValue: root,
+    });
+    expect(result.data?.hello).toBe('Hello from GraphQL!');
   });
-}); 
+});
