@@ -1,5 +1,5 @@
 import { createIntegrationServer } from './test/integrationServer';
-import { ApolloClient, HttpLink, InMemoryCache, gql } from '@apollo/client';
+import { ApolloClient, gql, HttpLink, InMemoryCache } from '@apollo/client';
 
 describe('Error Handling', () => {
   let testEnv: Awaited<ReturnType<typeof createIntegrationServer>>;
@@ -21,6 +21,7 @@ describe('Error Handling', () => {
   });
 
   it('should handle invalid queries', async () => {
+    // noinspection GraphQLUnresolvedReference
     const invalidQuery = gql`
       query {
         nonExistentField
@@ -38,6 +39,7 @@ describe('Error Handling', () => {
   });
 
   it('should handle mutation with invalid input', async () => {
+    // noinspection GraphQLSchemaValidation
     const invalidMutation = gql`
       mutation {
         updateInput
@@ -53,4 +55,4 @@ describe('Error Handling', () => {
       expect(error.message).toContain('Field "updateInput" argument "value" of type "String!" is required');
     }
   });
-}); 
+});
