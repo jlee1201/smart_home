@@ -2,7 +2,27 @@
   "preset": "ts-jest",
   "testEnvironment": "node",
   "moduleNameMapper": {
-    "^@/(.*)$": "<rootDir>/src/$1"
+    "^@/(.*)$": "<rootDir>/src/$1",
+    "^@client/(.*)$": "<rootDir>/src/client/$1"
   },
-  "testMatch": ["**/*.test.ts", "**/*.test.tsx"]
+  "testMatch": ["**/*.test.ts", "**/*.test.tsx"],
+  "projects": [
+    {
+      "displayName": "server",
+      "testEnvironment": "node",
+      "testMatch": ["<rootDir>/src/server/**/*.test.ts"],
+      "transform": {
+        "^.+\\.ts$": ["ts-jest", { "tsconfig": "src/server/tsconfig.json" }]
+      }
+    },
+    {
+      "displayName": "client",
+      "testEnvironment": "jsdom",
+      "testMatch": ["<rootDir>/src/client/**/*.test.tsx"],
+      "transform": {
+        "^.+\\.(ts|tsx)$": ["ts-jest", { "tsconfig": "src/client/tsconfig.json" }]
+      },
+      "setupFilesAfterEnv": ["<rootDir>/src/client/setupTests.ts"]
+    }
+  ]
 } 
