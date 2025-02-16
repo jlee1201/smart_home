@@ -17,11 +17,29 @@ const INPUT_SUBSCRIPTION = gql`
 `;
 
 export default function App() {
-  const { loading, error, data } = useQuery(HELLO_QUERY);
-  const { data: subscriptionData } = useSubscription(INPUT_SUBSCRIPTION);
+  const { loading, error, data } = useQuery(HELLO_QUERY, {
+    onError: (error) => {
+      console.error('Query error:', error);
+    },
+  });
 
-  if (loading) return <p>Loading...</p>;
-  if (error) return <p>Error: {error.message}</p>;
+  const { data: subscriptionData, error: subscriptionError } = useSubscription(INPUT_SUBSCRIPTION, {
+    onError: (error) => {
+      console.error('Subscription error:', error);
+    },
+  });
+
+  if (loading) return <div role="status">Loading...</div>;
+  
+  if (error) {
+    return (
+      <div role="alert" className="error-container">
+        <h2>Error</h2>
+        <p>{error.message}</p>
+        <button onClick={() => window.location.reload()}>Retry</button>
+      </div>
+    );
+  }
 
   const currentInput = subscriptionData?.inputChanged || data.currentInput || '';
 
@@ -31,8 +49,17 @@ export default function App() {
         <Link to="/">Home</Link> | <Link to="/input">Input Page</Link>
       </nav>
 
+      {subscriptionError && (
+        <div role="alert" className="warning-banner">
+          Real-time updates unavailable: {subscriptionError.message}
+        </div>
+      )}
+
       <Routes>
-        <Route path="/" element={<HomePage message={data.hello} currentInput={currentInput} />} />
+        <Route 
+          path="/" 
+          element={<HomePage message={data.hello} currentInput={currentInput} />} 
+        />
         <Route path="/input" element={<InputPage />} />
       </Routes>
     </div>

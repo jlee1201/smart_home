@@ -9,12 +9,29 @@ const UPDATE_INPUT = gql`
 
 export function InputPage() {
   const [inputValue, setInputValue] = useState('');
-  const [updateInput] = useMutation(UPDATE_INPUT);
+  const [error, setError] = useState<string | null>(null);
+  const [updateInput] = useMutation(UPDATE_INPUT, {
+    onError: (error) => {
+      setError(error.message);
+    },
+  });
 
   const handleInputChange = async (e: ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setInputValue(value);
-    await updateInput({ variables: { value } });
+    setError(null);
+
+    try {
+      await updateInput({ 
+        variables: { value },
+        onError: (error) => {
+          setError(error.message);
+        },
+      });
+    } catch (error) {
+      // Handle any synchronous errors
+      setError(error instanceof Error ? error.message : 'An unknown error occurred');
+    }
   };
 
   return (
@@ -25,7 +42,13 @@ export function InputPage() {
         value={inputValue}
         onChange={handleInputChange}
         placeholder="Type something..."
+        aria-invalid={!!error}
       />
+      {error && (
+        <div className="error-message" role="alert">
+          {error}
+        </div>
+      )}
     </div>
   );
 } 
