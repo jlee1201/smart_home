@@ -1,37 +1,66 @@
 import express from 'express';
-import path from 'path';
 import { createServer } from 'http';
-import { createHandler } from 'graphql-http/lib/use/express';
-import { root, schema } from './schema';
+import { ApolloServer } from '@apollo/server';
+import { expressMiddleware } from '@apollo/server/express4';
+import { ApolloServerPluginDrainHttpServer } from '@apollo/server/plugin/drainHttpServer';
+import { WebSocketServer } from 'ws';
+import { useServer } from 'graphql-ws/lib/use/ws';
+import { makeExecutableSchema } from '@graphql-tools/schema';
+import { typeDefs } from './schema';
+import { resolvers } from './resolvers';
+import { pubsub } from './pubsub';
 import { config } from './config';
-import { setupWebSocketServer } from './websocket';
+import { GRAPHQL_PATH } from './constants';
+import cors from 'cors';
 
-const app = express();
-const httpServer = createServer(app);
-const { port } = config.server;
-const { path: graphqlPath } = config.graphql;
+async function startServer() {
+  const app = express();
+  const httpServer = createServer(app);
 
-setupWebSocketServer(httpServer);
+  const schema = makeExecutableSchema({ typeDefs, resolvers });
 
-// GraphQL endpoint
-app.use(graphqlPath, createHandler({
-  schema,
-  rootValue: root,
-  context: () => (
-    {}
-  ),
-  validationRules: [],
-}));
+  // WebSocket server for subscriptions
+  const wsServer = new WebSocketServer({
+    server: httpServer,
+    path: GRAPHQL_PATH,
+  });
 
-// Serve static files from the React app
-app.use(express.static(path.join(__dirname, '../../dist/client')));
+  const serverCleanup = useServer({ schema }, wsServer);
 
-// Handle React routing, return all requests to React app
-app.get('*', (_req, res) => {
-  res.sendFile(path.join(__dirname, '../../dist/client/index.html'));
-});
+  const server = new ApolloServer({
+    schema,
+    plugins: [
+      ApolloServerPluginDrainHttpServer({ httpServer }),
+      {
+        async serverWillStart() {
+          return {
+            async drainServer() {
+              await serverCleanup.dispose();
+            },
+          };
+        },
+      },
+    ],
+  });
 
-httpServer.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
-  console.log(`GraphQL IDE available at http://localhost:${port}${graphqlPath}`);
+  await server.start();
+
+  app.use(
+    GRAPHQL_PATH,
+    cors<cors.CorsRequest>(),
+    express.json(),
+    expressMiddleware(server, {
+      context: async () => ({ pubsub }),
+    })
+  );
+
+  const { port } = config.server;
+
+  await new Promise<void>(resolve => httpServer.listen(port, resolve));
+  console.log(`🚀 Server ready at http://localhost:${port}${GRAPHQL_PATH}`);
+}
+
+startServer().catch(err => {
+  console.error('Failed to start server:', err);
+  process.exit(1);
 });
