@@ -1,4 +1,4 @@
-import { config } from '../config';
+import { config } from '@/config';
 
 const logLevels = {
   debug: 0,
@@ -11,7 +11,7 @@ function shouldLog(level: keyof typeof logLevels): boolean {
   return logLevels[level] >= logLevels[config.logging.level];
 }
 
-function formatMessage(level: string, message: string, meta?: any): string {
+function formatMessage(level: string, message: string, meta?: Record<string, unknown>): string {
   const timestamp = new Date().toISOString();
   const metaString = meta ? ` ${JSON.stringify(meta)}` : '';
   return config.logging.pretty
@@ -20,22 +20,22 @@ function formatMessage(level: string, message: string, meta?: any): string {
 }
 
 export const logger = {
-  debug(message: string, meta?: any) {
+  debug(message: string, meta?: Record<string, unknown>) {
     if (shouldLog('debug')) {
       console.debug(formatMessage('debug', message, meta));
     }
   },
-  info(message: string, meta?: any) {
+  info(message: string, meta?: Record<string, unknown>) {
     if (shouldLog('info')) {
       console.info(formatMessage('info', message, meta));
     }
   },
-  warn(message: string, meta?: any) {
+  warn(message: string, meta?: Record<string, unknown>) {
     if (shouldLog('warn')) {
       console.warn(formatMessage('warn', message, meta));
     }
   },
-  error(message: string, meta?: any) {
+  error(message: string, meta?: Record<string, unknown>) {
     if (shouldLog('error')) {
       console.error(formatMessage('error', message, meta));
     }

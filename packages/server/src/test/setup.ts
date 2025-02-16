@@ -1,5 +1,3 @@
-import { config } from '../config';
-
 // Ensure we're using test environment
 process.env.NODE_ENV = 'test';
 

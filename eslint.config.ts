@@ -1,4 +1,5 @@
-import type { Linter } from 'eslint';
+// noinspection JSUnusedGlobalSymbols
+
 import * as eslint from '@eslint/js';
 import * as tseslint from '@typescript-eslint/eslint-plugin';
 import * as tsParser from '@typescript-eslint/parser';
@@ -11,7 +12,7 @@ const config = [
   {
     files: ['**/*.{ts,tsx}'],
     languageOptions: {
-      parser: tsParser.default,
+      parser: tsParser,
       parserOptions: {
         ecmaFeatures: {
           jsx: true,
@@ -22,9 +23,9 @@ const config = [
     },
     plugins: {
       '@typescript-eslint': tseslint,
-      'react': reactPlugin,
-      'prettier': prettierPlugin,
-      'import': importPlugin,
+      react: reactPlugin,
+      prettier: prettierPlugin,
+      import: importPlugin,
     },
     rules: {
       'react/react-in-jsx-scope': 'off',
@@ -47,4 +48,5 @@ const config = [
   },
 ] as const;
 
-export default config; 
+// eslint-disable-next-line import/no-default-export
+export default config;

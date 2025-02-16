@@ -7,7 +7,7 @@ import { TEST_MUTATION, TEST_QUERY, TEST_SUBSCRIPTION } from './test/helpers';
 
 describe('Integration', () => {
   let testEnv: Awaited<ReturnType<typeof createIntegrationServer>>;
-  let client: ApolloClient<any>;
+  let client: ApolloClient<unknown>;
 
   beforeAll(async () => {
     testEnv = await createIntegrationServer();

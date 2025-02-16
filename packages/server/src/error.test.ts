@@ -3,7 +3,7 @@ import { ApolloClient, gql, HttpLink, InMemoryCache } from '@apollo/client';
 
 describe('Error Handling', () => {
   let testEnv: Awaited<ReturnType<typeof createIntegrationServer>>;
-  let client: ApolloClient<any>;
+  let client: ApolloClient<unknown>;
 
   beforeAll(async () => {
     testEnv = await createIntegrationServer();
@@ -33,7 +33,7 @@ describe('Error Handling', () => {
         query: invalidQuery,
       });
       fail('Should have thrown an error');
-    } catch (error: any) {
+    } catch (error) {
       expect(error.message).toContain('Cannot query field "nonExistentField"');
     }
   });
@@ -51,7 +51,7 @@ describe('Error Handling', () => {
         mutation: invalidMutation,
       });
       fail('Should have thrown an error');
-    } catch (error: any) {
+    } catch (error) {
       expect(error.message).toContain(
         'Field "updateInput" argument "value" of type "String!" is required'
       );

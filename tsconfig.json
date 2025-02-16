@@ -6,9 +6,11 @@
   ],
   "compilerOptions": {
     "allowJs": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "moduleResolution": "Node16"
   },
   "include": [
-    ".eslintrc.ts"
+    ".eslintrc.ts",
+    "types.d.ts"
   ]
 }

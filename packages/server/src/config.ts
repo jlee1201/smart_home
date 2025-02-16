@@ -9,7 +9,7 @@ dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
 
 const nodeEnv = process.env.NODE_ENV || 'development';
 
-export const config: Config = nodeEnv === 'production' ? productionConfig : developmentConfig;
+const _config: Config = nodeEnv === 'production' ? productionConfig : developmentConfig;
 
 // Allow environment variables to override config
 export function overrideConfigFromEnv(currentConfig: Config): Config {
@@ -30,4 +30,4 @@ export function overrideConfigFromEnv(currentConfig: Config): Config {
 }
 
 // Apply environment overrides
-export default overrideConfigFromEnv(config);
+export const config = overrideConfigFromEnv(_config);
