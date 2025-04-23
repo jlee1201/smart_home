@@ -23,6 +23,7 @@
     "graphql-subscriptions": "^2.0.0",
     "graphql-tag": "^2.12.6",
     "graphql-ws": "^5.14.2",
+    "whatwg-mimetype": "^4.0.0",
     "ws": "^8.16.0"
   },
   "devDependencies": {
