@@ -1,7 +1,8 @@
 import { gql, useQuery, useSubscription } from '@apollo/client';
-import { Link, Route, Routes } from 'react-router-dom';
+import { Route, Routes } from 'react-router-dom';
 import { HomePage } from '@/pages/HomePage';
 import { InputPage } from '@/pages/InputPage';
+import { Layout } from '@design-system';
 
 const HELLO_QUERY = gql`
   query GetHello {
@@ -41,19 +42,29 @@ export function App() {
     }
   );
 
-  if (loading) return <div role="status">Loading...</div>;
+  if (loading) return (
+    <div className="flex justify-center items-center" style={{minHeight: '100vh'}}>
+      <div className="text-center">
+        <div className="spinner"></div>
+        <p>Loading...</p>
+      </div>
+    </div>
+  );
 
   if (error || !data) {
     return (
-      <div role="alert" className="error-container">
-        <h2>Error</h2>
-        <p>{error?.message || 'An unknown error occurred'}</p>
-        <button 
-          onClick={() => window.location.reload()}
-          aria-label="Retry loading the application"
-        >
-          Retry
-        </button>
+      <div className="farmhouse-container">
+        <div className="farmhouse-error" role="alert">
+          <h2>Error</h2>
+          <p>{error?.message || 'An unknown error occurred'}</p>
+          <button 
+            onClick={() => window.location.reload()}
+            aria-label="Retry loading the application"
+            className="farmhouse-btn farmhouse-btn-primary mt-4"
+          >
+            Retry
+          </button>
+        </div>
       </div>
     );
   }
@@ -61,13 +72,9 @@ export function App() {
   const currentInput = subscriptionData?.inputChanged ?? data.currentInput ?? '';
 
   return (
-    <div className="App">
-      <nav aria-label="Main navigation">
-        <Link to="/">Home</Link> | <Link to="/input">Input Page</Link>
-      </nav>
-
+    <Layout>
       {subscriptionError && (
-        <div role="alert" className="warning-banner">
+        <div className="farmhouse-warning mb-4" role="alert">
           Real-time updates unavailable: {subscriptionError.message}
         </div>
       )}
@@ -79,6 +86,6 @@ export function App() {
         />
         <Route path="/input" element={<InputPage />} />
       </Routes>
-    </div>
+    </Layout>
   );
 }

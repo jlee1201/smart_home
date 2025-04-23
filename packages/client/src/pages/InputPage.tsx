@@ -1,6 +1,7 @@
 import { gql, useMutation } from '@apollo/client';
 import { ChangeEvent, useState, useCallback, useEffect } from 'react';
 import debounce from 'lodash/debounce';
+import { Card, Input, Button } from '@design-system';
 
 const UPDATE_INPUT = gql`
   mutation UpdateInput($value: String!) {
@@ -59,34 +60,54 @@ export function InputPage() {
     debouncedUpdate(value);
   };
 
+  const handleClear = () => {
+    setInputValue('');
+    setError(null);
+    debouncedUpdate('');
+  };
+
   return (
-    <div className="InputPage">
-      <h1>Input Page</h1>
-      <div className="input-container">
-        <input
-          type="text"
+    <div>
+      <h2>Control Your Smart Home</h2>
+      
+      <Card 
+        title="Input Controls"
+        subtitle="Update values in real-time"
+        className="max-w-lg mt-6"
+      >
+        <p>
+          Enter a value below to update it in real-time across all connected clients.
+        </p>
+        
+        <Input
+          label="Smart Home Command"
           value={inputValue}
           onChange={handleInputChange}
           placeholder="Type something..."
-          aria-invalid={!!error}
-          aria-describedby={error ? "error-message" : undefined}
+          error={error || undefined}
           disabled={loading}
+          helperText="Commands are processed in real-time"
+          fullWidth
         />
-        {loading && (
-          <div className="input-status" aria-live="polite">
-            Updating...
-          </div>
-        )}
-        {error && (
-          <div 
-            id="error-message"
-            className="error-message" 
-            role="alert"
+        
+        <div className="flex gap-4 pt-2">
+          <Button
+            variant="primary"
+            disabled={!inputValue || loading}
+            onClick={() => debouncedUpdate(inputValue)}
           >
-            {error}
-          </div>
-        )}
-      </div>
+            {loading ? 'Updating...' : 'Update'}
+          </Button>
+          
+          <Button
+            variant="secondary"
+            disabled={!inputValue || loading}
+            onClick={handleClear}
+          >
+            Clear
+          </Button>
+        </div>
+      </Card>
     </div>
   );
 }

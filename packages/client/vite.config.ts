@@ -39,6 +39,8 @@ export const viteConfig = defineConfig(({ mode }) => {
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './src'),
+        '@components': path.resolve(__dirname, './src/components'),
+        '@design-system': path.resolve(__dirname, './src/components/design-system'),
       },
     },
     // Add optimizeDeps for faster updates

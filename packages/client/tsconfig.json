@@ -11,7 +11,9 @@
     "types": ["vite/client", "jest", "node"],
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["src/*"],
+      "@components/*": ["src/components/*"],
+      "@design-system": ["src/components/design-system"]
     }
   },
   "include": ["src", "vite.config.ts"],
