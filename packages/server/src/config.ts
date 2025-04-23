@@ -1,8 +1,13 @@
 import * as dotenv from 'dotenv';
 import * as path from 'path';
-import { developmentConfig } from './config/development';
-import { productionConfig } from './config/production';
-import type { Config } from './types/config';
+import { fileURLToPath } from 'url';
+import { developmentConfig } from './config/development.js';
+import { productionConfig } from './config/production.js';
+import type { Config } from './types/config.js';
+
+// Get dirname in ESM
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Load environment variables
 dotenv.config({ path: path.resolve(__dirname, '../../../.env') });

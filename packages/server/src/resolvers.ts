@@ -1,49 +1,94 @@
 import { GraphQLError } from 'graphql';
 import { PubSub } from 'graphql-subscriptions';
-import { logger } from './utils/logger';
+import { logger } from './utils/logger.js';
+
+// Create an enum for error codes
+export enum ErrorCode {
+  BAD_USER_INPUT = 'BAD_USER_INPUT',
+  SUBSCRIPTION_FAILED = 'SUBSCRIPTION_FAILED',
+  INTERNAL_ERROR = 'INTERNAL_ERROR',
+}
+
+// Add proper type definitions with more specific types
+type ResolverContext = {
+  pubsub: PubSub;
+};
+
+type ResolverParent = unknown;
+type ResolverArgs<T> = { value: T };
+
+type Resolvers = {
+  Query: {
+    hello: () => string;
+    currentInput: () => string;
+  };
+  Mutation: {
+    updateInput: (
+      parent: ResolverParent,
+      args: ResolverArgs<unknown>,
+      context: ResolverContext
+    ) => Promise<string>;
+  };
+  Subscription: {
+    inputChanged: {
+      subscribe: (
+        parent: ResolverParent,
+        args: never,
+        context: ResolverContext
+      ) => AsyncIterator<{ inputChanged: string }>;
+    };
+  };
+};
+
+// Constants
+const MAX_INPUT_LENGTH = 1000;
+const SUBSCRIPTION_CHANNEL = 'INPUT_CHANGED' as const;
 
 let currentInput = '';
 
-export const resolvers = {
+export const resolvers: Resolvers = {
   Query: {
     hello: () => 'Hello from GraphQL!',
     currentInput: () => currentInput,
   },
   Mutation: {
-    updateInput: (_: unknown, { value }: { value: unknown }, { pubsub }: { pubsub: PubSub }) => {
+    updateInput: async (_, { value }, { pubsub }) => {
       try {
         if (typeof value !== 'string') {
-          // noinspection ExceptionCaughtLocallyJS
           throw new GraphQLError('Invalid input value type', {
-            extensions: { code: 'BAD_USER_INPUT' },
+            extensions: { code: ErrorCode.BAD_USER_INPUT },
           });
         }
 
-        if (value.length > 1000) {
-          // noinspection ExceptionCaughtLocallyJS
+        if (value.length > MAX_INPUT_LENGTH) {
           throw new GraphQLError('Input value exceeds maximum length', {
-            extensions: { code: 'BAD_USER_INPUT' },
+            extensions: { code: ErrorCode.BAD_USER_INPUT },
           });
         }
 
         currentInput = value;
-        pubsub.publish('INPUT_CHANGED', { inputChanged: value }).then();
+        await pubsub.publish(SUBSCRIPTION_CHANNEL, { inputChanged: value });
         return value;
       } catch (error) {
         logger.error('Error in updateInput mutation', { error });
-        throw error;
+        if (error instanceof GraphQLError) {
+          throw error;
+        }
+        throw new GraphQLError('Internal server error', {
+          extensions: { code: ErrorCode.INTERNAL_ERROR },
+        });
       }
     },
   },
   Subscription: {
     inputChanged: {
-      subscribe: (_: unknown, __: unknown, { pubsub }: { pubsub: PubSub }) => {
+      subscribe: (_, __, { pubsub }) => {
         try {
-          return pubsub.asyncIterator(['INPUT_CHANGED']);
+          return pubsub.asyncIterator([SUBSCRIPTION_CHANNEL]);
         } catch (error) {
           logger.error('Error in inputChanged subscription', { error });
           throw new GraphQLError('Subscription failed', {
-            extensions: { code: 'SUBSCRIPTION_FAILED' },
+            extensions: { code: ErrorCode.SUBSCRIPTION_FAILED },
           });
         }
       },

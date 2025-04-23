@@ -16,36 +16,53 @@ const INPUT_SUBSCRIPTION = gql`
   }
 `;
 
+type HelloQuery = {
+  hello: string;
+  currentInput: string;
+};
+
+type InputSubscription = {
+  inputChanged: string;
+};
+
 export function App() {
-  const { loading, error, data } = useQuery(HELLO_QUERY, {
-    onError: error => {
+  const { loading, error, data } = useQuery<HelloQuery>(HELLO_QUERY, {
+    onError: (error) => {
       console.error('Query error:', error);
     },
   });
 
-  const { data: subscriptionData, error: subscriptionError } = useSubscription(INPUT_SUBSCRIPTION, {
-    onError: error => {
-      console.error('Subscription error:', error);
-    },
-  });
+  const { data: subscriptionData, error: subscriptionError } = useSubscription<InputSubscription>(
+    INPUT_SUBSCRIPTION,
+    {
+      onError: (error) => {
+        console.error('Subscription error:', error);
+      },
+    }
+  );
 
   if (loading) return <div role="status">Loading...</div>;
 
-  if (error) {
+  if (error || !data) {
     return (
       <div role="alert" className="error-container">
         <h2>Error</h2>
-        <p>{error.message}</p>
-        <button onClick={() => window.location.reload()}>Retry</button>
+        <p>{error?.message || 'An unknown error occurred'}</p>
+        <button 
+          onClick={() => window.location.reload()}
+          aria-label="Retry loading the application"
+        >
+          Retry
+        </button>
       </div>
     );
   }
 
-  const currentInput = subscriptionData?.inputChanged || data.currentInput || '';
+  const currentInput = subscriptionData?.inputChanged ?? data.currentInput ?? '';
 
   return (
     <div className="App">
-      <nav>
+      <nav aria-label="Main navigation">
         <Link to="/">Home</Link> | <Link to="/input">Input Page</Link>
       </nav>
 
@@ -56,7 +73,10 @@ export function App() {
       )}
 
       <Routes>
-        <Route path="/" element={<HomePage message={data.hello} currentInput={currentInput} />} />
+        <Route 
+          path="/" 
+          element={<HomePage message={data.hello} currentInput={currentInput} />} 
+        />
         <Route path="/input" element={<InputPage />} />
       </Routes>
     </div>
