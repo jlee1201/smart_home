@@ -22,15 +22,11 @@ const __dirname = path.dirname(__filename);
 // Server state tracking for HMR support
 let httpServer: ReturnType<typeof createServer> | null = null;
 let serverCleanup: { dispose: () => void | Promise<void> } | null = null;
+let wsServer: WebSocketServer | null = null;
 
 async function stopServer() {
-  if (serverCleanup) {
-    logger.info('Disposing GraphQL subscription server');
-    await serverCleanup.dispose();
-    serverCleanup = null;
-  }
-  
-  return new Promise<void>((resolve) => {
+  // Close HTTP server first
+  const closeHttpServer = new Promise<void>((resolve) => {
     if (httpServer) {
       logger.info('Closing HTTP server');
       httpServer.close(() => {
@@ -42,6 +38,43 @@ async function stopServer() {
       resolve();
     }
   });
+  
+  // Wait for HTTP server to close before cleaning up WebSocket resources
+  await closeHttpServer;
+  
+  // Then clean up WebSocket resources
+  if (serverCleanup) {
+    try {
+      logger.info('Disposing GraphQL subscription server');
+      await serverCleanup.dispose();
+      serverCleanup = null;
+    } catch (error) {
+      // Check if error is empty or not an object
+      if (!error || typeof error !== 'object' || Object.keys(error).length === 0) {
+        logger.warn('Empty error while disposing GraphQL subscription server. This is likely benign and related to no active connections.');
+      } else {
+        logger.warn('Error while disposing GraphQL subscription server', { 
+          error: error instanceof Error ? {
+            message: error.message,
+            name: error.name,
+            stack: error.stack
+          } : error 
+        });
+      }
+      // Continue shutdown even if there's an error
+    }
+  }
+  
+  if (wsServer) {
+    try {
+      logger.info('Closing WebSocket server');
+      wsServer.close();
+      wsServer = null;
+    } catch (error) {
+      logger.warn('Error while closing WebSocket server', { error });
+      // Continue shutdown even if there's an error
+    }
+  }
 }
 
 // Handle graceful shutdown for HMR
@@ -51,8 +84,13 @@ if (process.env.NODE_ENV !== 'production') {
   for (const signal of signals) {
     process.on(signal, async () => {
       logger.info(`${signal} received, shutting down server`);
-      await stopServer();
-      process.exit(0);
+      try {
+        await stopServer();
+        process.exit(0);
+      } catch (error) {
+        logger.error(`Error during shutdown: ${error}`);
+        process.exit(1);
+      }
     });
   }
 }
@@ -73,7 +111,6 @@ async function startServer() {
     }
 
     // Create WebSocketServer with proper error handling
-    let wsServer;
     try {
       // Fix the WebSocketServer instantiation
       wsServer = new WebSocketServer({

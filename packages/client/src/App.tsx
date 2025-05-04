@@ -2,6 +2,8 @@ import { gql, useQuery, useSubscription } from '@apollo/client';
 import { Route, Routes } from 'react-router-dom';
 import { HomePage } from '@/pages/HomePage';
 import { InputPage } from '@/pages/InputPage';
+import { VizioRemotePage } from '@/pages/VizioRemotePage';
+import { TVPairingPage } from '@/pages/TVPairingPage';
 import { Layout } from '@design-system';
 
 const HELLO_QUERY = gql`
@@ -85,6 +87,8 @@ export function App() {
           element={<HomePage message={data.hello} currentInput={currentInput} />} 
         />
         <Route path="/input" element={<InputPage />} />
+        <Route path="/vizio-remote" element={<VizioRemotePage />} />
+        <Route path="/tv-pairing" element={<TVPairingPage />} />
       </Routes>
     </Layout>
   );
