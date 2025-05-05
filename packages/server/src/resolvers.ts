@@ -57,6 +57,11 @@ type Resolvers = {
     ) => Promise<{ success: boolean; authToken: string }>;
     resetTVConnection: () => Promise<boolean>;
     cancelTVPairing: () => Promise<boolean>;
+    clearErrorLogs: (
+      parent: ResolverParent,
+      args: never,
+      context: ResolverContext
+    ) => Promise<boolean>;
   };
   Subscription: {
     inputChanged: {
@@ -334,6 +339,25 @@ export const resolvers: Resolvers = {
       } catch (error: any) {
         logger.error('Error canceling TV pairing', { error: error?.message || 'Unknown error' });
         throw new GraphQLError('Failed to cancel TV pairing', {
+          extensions: { code: ErrorCode.INTERNAL_ERROR },
+        });
+      }
+    },
+    clearErrorLogs: async (_, __, { pubsub }) => {
+      try {
+        // Clear the error logs array
+        errorLogs.length = 0;
+        
+        // Publish the empty array to subscribers
+        await pubsub.publish(ERROR_LOG_CHANNEL, { errorLogChanged: errorLogs });
+        
+        return true;
+      } catch (error) {
+        logger.error('Error in clearErrorLogs mutation', { error });
+        if (error instanceof GraphQLError) {
+          throw error;
+        }
+        throw new GraphQLError('Internal server error', {
           extensions: { code: ErrorCode.INTERNAL_ERROR },
         });
       }

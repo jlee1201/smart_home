@@ -3,6 +3,9 @@ import { gql, useMutation, useQuery, useSubscription } from '@apollo/client';
 import { Button, Card, Input } from '@design-system';
 import { Link } from 'react-router-dom';
 
+// HMR test comment - this should update without a full page reload
+console.log('VizioRemotePage updated - HMR test', new Date().toISOString());
+
 const TV_STATUS_QUERY = gql`
   query GetTVStatus {
     tvStatus {
@@ -36,12 +39,30 @@ const SEND_TV_COMMAND = gql`
   }
 `;
 
+const ERROR_LOGS_SUBSCRIPTION = gql`
+  subscription OnErrorLogChanged {
+    errorLogChanged {
+      id
+      timestamp
+      message
+      details
+    }
+  }
+`;
+
 type TVStatus = {
   isPoweredOn: boolean;
   volume: number;
   channel: string;
   isMuted: boolean;
   input: string;
+};
+
+type ErrorLog = {
+  id: string;
+  timestamp: number;
+  message: string;
+  details?: string;
 };
 
 export function VizioRemotePage() {
@@ -90,6 +111,28 @@ export function VizioRemotePage() {
     }
   });
   
+  // Subscribe to error logs
+  const { data: errorLogData } = useSubscription<{ errorLogChanged: ErrorLog[] }>(ERROR_LOGS_SUBSCRIPTION, {
+    onData: ({ data }) => {
+      if (data.data?.errorLogChanged && data.data.errorLogChanged.length > 0) {
+        // Get the most recent error
+        const latestError = data.data.errorLogChanged[0];
+        // Only show TV remote related errors (filter by message content)
+        if (latestError.message.includes('TV') || latestError.message.includes('remote')) {
+          setErrorMessage(latestError.message);
+          
+          // Clear error message after 5 seconds
+          setTimeout(() => {
+            setErrorMessage('');
+          }, 5000);
+        }
+      }
+    },
+    onError: (error) => {
+      console.error('Error log subscription error:', error);
+    }
+  });
+  
   // Use effect to update state from subscription
   useEffect(() => {
     if (subscriptionData?.tvStatusChanged) {
@@ -102,7 +145,13 @@ export function VizioRemotePage() {
     }
   }, [subscriptionData]);
   
-  const [sendCommand, { loading: commandLoading }] = useMutation(SEND_TV_COMMAND);
+  const [sendCommand, { loading: commandLoading, error: commandError }] = useMutation(SEND_TV_COMMAND, {
+    onError: (error) => {
+      console.error('Error sending command:', error);
+      setErrorMessage('Failed to send command to TV. The connection may have been lost.');
+      refetchStatus();
+    }
+  });
   
   // Add a state for the error message
   const [errorMessage, setErrorMessage] = useState<string>('');
@@ -134,10 +183,26 @@ export function VizioRemotePage() {
     }
   }, [queryError, refetchStatus]);
   
+  // Add effect to show command errors
+  useEffect(() => {
+    if (commandError) {
+      setErrorMessage(`Command error: ${commandError.message}`);
+    }
+  }, [commandError]);
+  
   const handleCommand = async (command: string, value?: string) => {
     try {
-      setErrorMessage(''); // Clear any existing error
-      await sendCommand({ variables: { command, value } });
+      // Only clear error message for new commands, not from existing errors
+      if (!commandError && !errorMessage.includes('Failed')) {
+        setErrorMessage(''); 
+      }
+      
+      const result = await sendCommand({ variables: { command, value } });
+      
+      // Check if the command failed (returned false)
+      if (result.data && result.data.sendTVCommand === false) {
+        setErrorMessage(`The command "${command}" failed. The TV may be unresponsive.`);
+      }
     } catch (error) {
       console.error('Error sending command:', error);
       setErrorMessage('Failed to send command to TV. The connection may have been lost.');

@@ -134,21 +134,29 @@ export class VizioAPI {
               pubsub, 
               `500 error from Vizio TV: ${endpoint}`,
               JSON.stringify({
-                method,
-                endpoint,
-                status: typedError?.response?.status,
-                data: typedError?.response?.data,
-                requestDetails: {
-                  dataPreview: data ? JSON.stringify(data).substring(0, 100) : 'null'
+                request: {
+                  method,
+                  url: `${this.getBaseUrl()}${endpoint}`,
+                  data: data ? JSON.stringify(data, null, 2) : null
+                },
+                response: {
+                  status: typedError?.response?.status,
+                  data: typedError?.response?.data ? JSON.stringify(typedError?.response?.data, null, 2) : null
                 }
-              })
+              }, null, 2)
             );
           }
         } catch (logError) {
           logger.debug('Could not add to error log channel', { logError });
         }
         
-        // Retry with exponential backoff
+        // For PUT requests to key_command endpoint, don't retry on 500 errors
+        if (method === 'PUT' && endpoint === '/key_command/') {
+          logger.warn('Not retrying PUT request to /key_command/ after 500 error');
+          throw new Error(`TV remote command failed: Server error (500)`);
+        }
+        
+        // Retry with exponential backoff for other requests
         if (retryCount > 0) {
           const delay = (3 - retryCount) * 1000; // 1s, 2s, 3s...
           logger.info(`Retrying ${method} request to ${endpoint} after ${delay}ms. Attempts remaining: ${retryCount}`);
@@ -205,6 +213,31 @@ export class VizioAPI {
               data: typeof responseData === 'string' ? responseData.substring(0, 100) : responseData,
               headers: error.response.headers
             });
+          }
+          
+          // Add detailed request and response to error log
+          try {
+            const { addErrorToLog } = await import('../resolvers.js');
+            const pubsub = (global as any).pubsub;
+            if (pubsub && addErrorToLog) {
+              await addErrorToLog(
+                pubsub, 
+                `Vizio API error: ${status} - ${endpoint}`,
+                JSON.stringify({
+                  request: {
+                    method,
+                    url: `${this.getBaseUrl()}${endpoint}`,
+                    data: data ? JSON.stringify(data, null, 2) : null
+                  },
+                  response: {
+                    status,
+                    data: typeof responseData === 'object' ? JSON.stringify(responseData, null, 2) : responseData
+                  }
+                }, null, 2)
+              );
+            }
+          } catch (logError) {
+            logger.debug('Could not add to error log channel', { logError });
           }
           
           // Check for authentication errors
@@ -448,15 +481,43 @@ export class VizioAPI {
    */
   async setVolume(level: number): Promise<void> {
     const volume = Math.max(0, Math.min(100, level));
-    const data = {
-      REQUEST: "MODIFY",
-      ITEMS: [{
-        NAME: "VOLUME",
-        VALUE: volume
-      }]
-    };
     
-    await this.sendRequest('/menu_native/dynamic/tv_settings/audio/volume', 'PUT', data);
+    try {
+      // First fetch current volume settings to get the hashval
+      const currentVolumeResponse = await this.sendRequest('/menu_native/dynamic/tv_settings/audio/volume');
+      logger.debug('Current volume settings:', { currentVolumeResponse });
+      
+      if (!currentVolumeResponse || !currentVolumeResponse.ITEMS || !currentVolumeResponse.ITEMS.length) {
+        throw new Error('Failed to retrieve current volume settings');
+      }
+      
+      // Find the volume item to get its hashval
+      const volumeItem = currentVolumeResponse.ITEMS.find((item: any) => 
+        item.NAME === "Volume" || item.CNAME === "volume"
+      );
+      
+      if (!volumeItem || !volumeItem.HASHVAL) {
+        throw new Error('Could not find volume HASHVAL in response');
+      }
+      
+      const hashVal = volumeItem.HASHVAL;
+      logger.debug(`Found volume HASHVAL: ${hashVal}`);
+      
+      // Now send the properly formatted PUT request
+      const data = {
+        REQUEST: "MODIFY",
+        VALUE: volume,
+        HASHVAL: hashVal
+      };
+      
+      const response = await this.sendRequest('/menu_native/dynamic/tv_settings/audio/volume', 'PUT', data);
+      logger.info(`Volume set to ${volume} successfully`, { response });
+    } catch (error) {
+      logger.error(`Failed to set volume to ${volume}`, {
+        error: error instanceof Error ? error.message : String(error)
+      });
+      throw new Error(`Failed to set TV volume to ${volume}`);
+    }
   }
   
   /**
@@ -525,85 +586,130 @@ export class VizioAPI {
     // For this model, input names need to be uppercase
     normalizedInput = normalizedInput.toUpperCase();
     
-    // Try using the direct MODIFY request first
+    // First try using key press commands which work more reliably
     try {
-      const data = {
-        REQUEST: "MODIFY",
-        ITEMS: [{
-          NAME: "CURRENT_INPUT",
-          VALUE: normalizedInput
-        }]
-      };
+      // Use a keypress sequence for common inputs
+      switch (normalizedInput) {
+        case 'HDMI-1':
+        case 'HDMI1':
+          logger.info('Setting input to HDMI-1 via key sequence');
+          await this.sendKeyPress('INPUT_HDMI1');
+          return;
+          
+        case 'HDMI-2':
+        case 'HDMI2':
+          logger.info('Setting input to HDMI-2 via key sequence');
+          await this.sendKeyPress('INPUT_HDMI2');
+          return;
+          
+        case 'HDMI-3':
+        case 'HDMI3':
+          logger.info('Setting input to HDMI-3 via key sequence');
+          await this.sendKeyPress('INPUT_HDMI3');
+          return;
+          
+        case 'HDMI-4':
+        case 'HDMI4':
+          logger.info('Setting input to HDMI-4 via key sequence');
+          await this.sendKeyPress('INPUT_HDMI4');
+          return;
+          
+        case 'SMARTCAST':
+          logger.info('Setting input to SMARTCAST via key sequence');
+          await this.sendKeyPress('SMARTCAST');
+          return;
+          
+        default:
+          logger.info(`No direct key for ${normalizedInput}, trying API methods`);
+          break;
+      }
       
-      // Increased retry count from 1 to 3 for this specific endpoint which commonly returns 500 errors
-      await this.sendRequest('/menu_native/dynamic/tv_settings/devices/current_input', 'PUT', data, true, 3);
-      logger.info(`Input set to ${normalizedInput} successfully via MODIFY`);
-      return;
-    } catch (error) {
-      logger.warn(`Error setting input using MODIFY method for input ${normalizedInput}`, { 
-        error: error instanceof Error ? error.message : String(error),
-        // Log more details about the error for debugging
-        errorDetails: {
-          name: error instanceof Error ? error.name : 'Unknown',
-          statusCode: (error as any)?.response?.status || 'Unknown status'
-        }
-      });
+      // If we don't have a direct key, fall back to API methods
       
-      // If MODIFY fails, try using a keypress sequence for common inputs
-      // This is a fallback for when the direct method returns 500 errors
+      // Try the documented method first (MODIFY with hashval)
       try {
-        switch (normalizedInput) {
-          case 'HDMI-1':
-          case 'HDMI1':
-            logger.info('Trying input change via key sequence for HDMI-1');
-            await this.sendKeyPress('INPUT_HDMI1');
-            return;
-            
-          case 'HDMI-2':
-          case 'HDMI2':
-            logger.info('Trying input change via key sequence for HDMI-2');
-            await this.sendKeyPress('INPUT_HDMI2');
-            return;
-            
-          case 'HDMI-3':
-          case 'HDMI3':
-            logger.info('Trying input change via key sequence for HDMI-3');
-            await this.sendKeyPress('INPUT_HDMI3');
-            return;
-            
-          case 'HDMI-4':
-          case 'HDMI4':
-            logger.info('Trying input change via key sequence for HDMI-4');
-            await this.sendKeyPress('INPUT_HDMI4');
-            return;
-            
-          case 'SMARTCAST':
-            logger.info('Trying input change via key sequence for SMARTCAST');
-            await this.sendKeyPress('SMARTCAST');
-            return;
-            
-          default:
-            // If we can't use a direct key, try one more approach
-            logger.info(`No direct key for ${normalizedInput}, trying alternative approach`);
-            break;
+        // Get current input to find hashval
+        const currentInputResponse = await this.sendRequest('/menu_native/dynamic/tv_settings/devices/current_input');
+        
+        if (!currentInputResponse || !currentInputResponse.ITEMS || !currentInputResponse.ITEMS.length) {
+          throw new Error('Failed to retrieve current input settings');
         }
         
-        // Last resort: try using a different input switching endpoint
-        const altData = {
-          DEVICE_NAME: this.deviceName,
-          DEVICE_ID: this.deviceId,
-          INPUT_NAME: normalizedInput
+        const currentInputItem = currentInputResponse.ITEMS[0];
+        if (!currentInputItem || !currentInputItem.HASHVAL) {
+          throw new Error('Could not find input HASHVAL in response');
+        }
+        
+        const hashVal = currentInputItem.HASHVAL;
+        logger.debug(`Found input HASHVAL: ${hashVal}`);
+        
+        // Make the PUT request with proper format
+        const data = {
+          REQUEST: "MODIFY",
+          VALUE: normalizedInput,
+          HASHVAL: hashVal
         };
         
-        await this.sendRequest('/menu_native/dynamic/tv_settings/devices/current_input/NAME', 'PUT', altData);
-        logger.info(`Input set to ${normalizedInput} successfully via alternative method`);
-        
-      } catch (secondError) {
-        logger.error(`Failed to set input after multiple attempts for input ${normalizedInput}`, {
-          error: secondError instanceof Error ? secondError.message : String(secondError)
+        await this.sendRequest('/menu_native/dynamic/tv_settings/devices/current_input', 'PUT', data, true, 3);
+        logger.info(`Input set to ${normalizedInput} successfully via MODIFY with hashval`);
+        return;
+      } catch (apiError) {
+        logger.warn(`Error setting input using documented API method for input ${normalizedInput}`, {
+          error: apiError instanceof Error ? apiError.message : String(apiError)
         });
-        throw new Error(`Failed to set TV input to ${normalizedInput} after multiple attempts`);
+        
+        // Try alternative API method as last resort
+        try {
+          // Try cycling through inputs until we find the one we want
+          // This is a fallback approach when nothing else works
+          logger.info(`Trying to cycle inputs to reach ${normalizedInput}`);
+          
+          // First, get the current input
+          const currentInput = await this.getCurrentInput();
+          
+          // Get available inputs
+          const availableInputs = await this.getAvailableInputs();
+          
+          if (availableInputs.length === 0) {
+            throw new Error('No available inputs found');
+          }
+          
+          // If the current input is already the target, we're done
+          if (currentInput.toUpperCase() === normalizedInput) {
+            logger.info(`Already on target input ${normalizedInput}`);
+            return;
+          }
+          
+          // Try cycling through inputs (limited number of tries)
+          const maxCycles = 10; // Limit how many times we'll cycle to avoid infinite loop
+          for (let i = 0; i < maxCycles; i++) {
+            // Send INPUT key to cycle
+            await this.sendKeyPress('INPUT');
+            
+            // Wait a moment for the TV to respond
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            // Check if we've reached the target input
+            const newInput = await this.getCurrentInput();
+            if (newInput.toUpperCase() === normalizedInput) {
+              logger.info(`Input set to ${normalizedInput} via input cycling`);
+              return;
+            }
+          }
+          
+          throw new Error(`Failed to reach input ${normalizedInput} after ${maxCycles} cycles`);
+        } catch (cycleError) {
+          logger.error(`Failed to set input after multiple attempts for input ${normalizedInput}`, {
+            error: cycleError instanceof Error ? cycleError.message : String(cycleError)
+          });
+          throw new Error(`Failed to set TV input to ${normalizedInput} after multiple attempts`);
+        }
       }
+    } catch (error) {
+      logger.error(`Failed to set input to ${normalizedInput}`, {
+        error: error instanceof Error ? error.message : String(error)
+      });
+      throw new Error(`Failed to set TV input to ${normalizedInput}`);
     }
   }
   
@@ -626,30 +732,60 @@ export class VizioAPI {
    */
   async sendKeyPress(key: string, retryCount = 2): Promise<void> {
     // Special codesets for M65Q7-H1 model
-    // Different keys need different CODESET values
+    // Different keys need different CODESET values based on Vizio API documentation
     const KEY_CODESET_MAP: Record<string, number> = {
-      'BACK': 4,       // Navigation keys use CODESET 4
-      'UP': 4,
-      'DOWN': 4,
-      'LEFT': 4,
-      'RIGHT': 4,
-      'OK': 4,
-      'HOME': 4,
-      'MENU': 4,
-      'EXIT': 4,
-      'POWER': 3,      // Power uses CODESET 3
-      'VOL_UP': 5,     // Volume keys use CODESET 5
-      'VOL_DOWN': 5,
-      'MUTE': 5,
-      'CH_UP': 8,      // Channel keys use CODESET 8
-      'CH_DOWN': 8
+      'BACK': 4,       // Navigation uses CODESET 4 (confirmed by testing)
+      'UP': 3,         // D-Pad uses CODESET 3 (confirmed by testing)
+      'DOWN': 3,       // D-Pad uses CODESET 3 (confirmed by testing)
+      'LEFT': 3,       // D-Pad uses CODESET 3 (confirmed by testing)
+      'RIGHT': 4,      // RIGHT uses CODESET 4 (confirmed by testing)
+      'OK': 4,         // OK uses CODESET 4 with CODE 5 (confirmed by testing)
+      'HOME': 3,       // HOME uses CODESET 3 with CODE 7 (confirmed by testing)
+      'MENU': 4,       // MENU uses CODESET 4 (confirmed by testing)
+      'EXIT': 4,       // EXIT uses CODESET 4 with CODE 1 (confirmed by testing)
+      'POWER': 11,     // Power uses CODESET 11 (per Vizio API docs)
+      'VOL_UP': 5,     // Volume keys use CODESET 5 (per Vizio API docs)
+      'VOL_DOWN': 5,   // Volume keys use CODESET 5 (per Vizio API docs)
+      'MUTE': 5,       // Mute uses CODESET 5 (per Vizio API docs)
+      'CH_UP': 8,      // Channel keys use CODESET 8 (per Vizio API docs)
+      'CH_DOWN': 8     // Channel keys use CODESET 8 (per Vizio API docs)
+    };
+    
+    // Key to code mapping for navigation keys that need numeric codes
+    const KEY_CODE_MAP: Record<string, number> = {
+      'BACK': 0,       // BACK = CODE 0 in CODESET 4 (confirmed by testing)
+      'UP': 0,         // UP = CODE 0 in CODESET 3 (confirmed by testing)
+      'DOWN': 1,       // DOWN = CODE 1 in CODESET 3 (confirmed by testing)
+      'LEFT': 2,       // LEFT = CODE 2 in CODESET 3 (confirmed by testing)
+      'RIGHT': 3,      // RIGHT = CODE 3 in CODESET 4 (confirmed by testing)
+      'OK': 5,         // OK = CODE 5 in CODESET 4 (confirmed by testing)
+      'HOME': 7,       // HOME = CODE 7 in CODESET 3 (confirmed by testing)
+      'MENU': 4,       // MENU = CODE 4 in CODESET 4 (confirmed by testing)
+      'EXIT': 1        // EXIT = CODE 1 in CODESET 4 (confirmed by testing)
+    };
+    
+    // For problematic buttons, try these alternative codesets as fallbacks
+    const ALTERNATIVE_CODESETS: Record<string, number[]> = {
+      'BACK': [4, 3],
+      'UP': [3, 4],
+      'DOWN': [3, 4],
+      'LEFT': [3, 4],
+      'RIGHT': [4, 3],
+      'OK': [4, 3],
+      'HOME': [3, 4],
+      'MENU': [4, 3],
+      'EXIT': [4, 3, 5]
     };
     
     // Multiple formats to try for this TV model - FIXED: removed data wrapper
     // since sendRequest doesn't wrap data for key_command/ endpoint
     const formats = [
-      // Format 1: Standard KEYLIST format
-      { KEYLIST: [key] },
+      // Format 1: KEYLIST with CODESET/CODE format for navigation keys
+      { KEYLIST: [
+        KEY_CODE_MAP[key] !== undefined ? 
+          { CODESET: KEY_CODESET_MAP[key] || 4, CODE: KEY_CODE_MAP[key], ACTION: "KEYPRESS" } :
+          key
+      ]},
       
       // Format 2: CODESET format with the right codeset for the key
       { CODESET: KEY_CODESET_MAP[key] || 5, CODE: key, ACTION: "KEYPRESS" },
@@ -678,14 +814,61 @@ export class VizioAPI {
     
     let lastError: any = null;
     
+    // For problematic buttons, try multiple codesets
+    if (ALTERNATIVE_CODESETS[actualKey]) {
+      // Try each codeset for this problematic button
+      for (const codeset of ALTERNATIVE_CODESETS[actualKey]) {
+        try {
+          // Use the numeric codeset/code format for navigation keys
+          if (KEY_CODE_MAP[actualKey] !== undefined) {
+            const data = {
+              KEYLIST: [{ 
+                CODESET: codeset,
+                CODE: KEY_CODE_MAP[actualKey],
+                ACTION: "KEYPRESS" 
+              }]
+            };
+            
+            logger.debug(`Trying problematic key ${actualKey} with CODESET=${codeset}, CODE=${KEY_CODE_MAP[actualKey]}`);
+            const response = await this.sendRequest('/key_command/', 'PUT', data);
+            
+            // Check if the response indicates success
+            if (response && response.STATUS && response.STATUS.RESULT === "SUCCESS") {
+              logger.info(`Key press ${actualKey} successful with CODESET=${codeset}`, { response });
+              return; // Success, exit function
+            }
+            
+            logger.warn(`Key press ${actualKey} failed with CODESET=${codeset}: ${response?.STATUS?.DETAIL || 'unknown error'}`);
+          }
+        } catch (error) {
+          logger.warn(`Error sending key press ${actualKey} with CODESET=${codeset}`, { 
+            error: error instanceof Error ? error.message : String(error)
+          });
+        }
+        
+        // Short pause between attempts
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+      
+      // If we get here for a problematic button, all alternative codesets failed
+      // Fall back to the standard approach below
+      logger.warn(`All alternative codesets failed for ${actualKey}, falling back to standard approach`);
+    }
+    
+    // Standard approach for non-problematic buttons or if alternative codesets failed
     // Try each format with decreasing delay between attempts
     for (let i = 0; i < formats.length; i++) {
       try {
         // Clone the format to avoid modifying the original
         const formatData = JSON.parse(JSON.stringify(formats[i]));
         
-        // Update the key in the format
-        if (formatData.KEYLIST) {
+        // Special case for navigation buttons like BACK
+        if (i === 0 && KEY_CODE_MAP[actualKey] !== undefined) {
+          // Already properly formatted in the first format above
+          logger.debug(`Using numeric code format for ${actualKey}: CODESET=${KEY_CODESET_MAP[actualKey]}, CODE=${KEY_CODE_MAP[actualKey]}`);
+        } 
+        // For other formats, update the key in the format
+        else if (formatData.KEYLIST) {
           formatData.KEYLIST = [actualKey];
         } else if (formatData.CODE) {
           formatData.CODE = actualKey;
@@ -716,17 +899,72 @@ export class VizioAPI {
           error: error instanceof Error ? error.message : String(error)
         });
         
+        // For server errors, don't retry other formats - let the error propagate to the UI
+        if (error instanceof Error && error.message.includes('Server error (500)')) {
+          // Log the error to error panel
+          try {
+            const { addErrorToLog } = await import('../resolvers.js');
+            const pubsub = (global as any).pubsub;
+            if (pubsub && addErrorToLog) {
+              await addErrorToLog(
+                pubsub, 
+                `Failed to send TV remote command: ${key}`,
+                JSON.stringify({
+                  request: {
+                    method: 'PUT',
+                    url: `${this.getBaseUrl()}/key_command/`,
+                    data: JSON.stringify(formats[i], null, 2)
+                  },
+                  response: {
+                    error: error.message
+                  }
+                }, null, 2)
+              );
+            }
+          } catch (logError) {
+            logger.debug('Could not add to error log channel', { logError });
+          }
+          
+          // Throw the error to stop processing
+          throw new Error(`TV remote button ${key} failed: Server did not accept the command`);
+        }
+        
         // Don't retry immediately, wait a bit (increasing delay for each format)
         await new Promise(resolve => setTimeout(resolve, 300 * (i + 1)));
       }
     }
     
-    // If all formats failed and we still have retries left
-    if (retryCount > 0) {
+    // If all formats failed and we still have retries left, try again unless it was a server error
+    if (retryCount > 0 && !(lastError instanceof Error && lastError.message.includes('Server error (500)'))) {
       logger.info(`Retrying key press ${key} with all formats, ${retryCount} attempts remaining`);
       // Add a longer delay before full retry
       await new Promise(resolve => setTimeout(resolve, 1000));
       return this.sendKeyPress(key, retryCount - 1);
+    }
+    
+    // Add error to the error log panel
+    try {
+      const { addErrorToLog } = await import('../resolvers.js');
+      const pubsub = (global as any).pubsub;
+      if (pubsub && addErrorToLog) {
+        await addErrorToLog(
+          pubsub, 
+          `Failed to send TV remote command: ${key}`,
+          JSON.stringify({
+            request: {
+              method: 'PUT',
+              url: `${this.getBaseUrl()}/key_command/`,
+              data: 'Attempted multiple format variations',
+              formats: JSON.stringify(formats, null, 2)
+            },
+            response: {
+              error: lastError instanceof Error ? lastError.message : String(lastError)
+            }
+          }, null, 2)
+        );
+      }
+    } catch (logError) {
+      logger.debug('Could not add to error log channel', { logError });
     }
     
     // If we've run out of retries, don't throw - this allows the UI to continue working
@@ -754,6 +992,31 @@ export class VizioAPI {
       logger.error(`Error launching app ${appName}`, { 
         error: error instanceof Error ? error.message : String(error)
       });
+      
+      // Add error to the error log panel
+      try {
+        const { addErrorToLog } = await import('../resolvers.js');
+        const pubsub = (global as any).pubsub;
+        if (pubsub && addErrorToLog) {
+          await addErrorToLog(
+            pubsub, 
+            `Failed to launch app: ${appName}`,
+            JSON.stringify({
+              request: {
+                method: 'PUT',
+                url: `${this.getBaseUrl()}/app/launch`,
+                data: JSON.stringify(data, null, 2)
+              },
+              response: {
+                error: error instanceof Error ? error.message : String(error)
+              }
+            }, null, 2)
+          );
+        }
+      } catch (logError) {
+        logger.debug('Could not add to error log channel', { logError });
+      }
+      
       throw error;
     }
   }

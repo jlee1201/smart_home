@@ -5,6 +5,7 @@
     "packages/*"
   ],
   "scripts": {
+    "start": "npm run dev",
     "dev": "docker-compose up -d && concurrently \"npm run dev:server\" \"wait-on -l tcp:8000 && npm run dev:client\"",
     "dev:client": "npm run dev -w client",
     "dev:server": "npm run dev -w server",
@@ -42,9 +43,14 @@
     "postcss": "^8.5.3",
     "prettier": "^3.1.1",
     "tailwindcss": "^4.1.4",
+    "terser": "^5.39.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.3.3",
     "wait-on": "^8.0.3"
   },
-  "packageManager": "yarn@1.22.19+sha1.4ba7fc5c6e704fce2066ecbfb0b0d8976fe62447"
+  "packageManager": "yarn@1.22.19+sha1.4ba7fc5c6e704fce2066ecbfb0b0d8976fe62447",
+  "dependencies": {
+    "axios": "^1.9.0",
+    "pg": "^8.15.6"
+  }
 }

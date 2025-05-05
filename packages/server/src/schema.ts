@@ -58,6 +58,7 @@ export const typeDefs = `#graphql
     resetTVConnection: Boolean
     cancelTVPairing: Boolean
     sendDenonAvrCommand(command: String!, value: String): Boolean
+    clearErrorLogs: Boolean
   }
 
   type Subscription {

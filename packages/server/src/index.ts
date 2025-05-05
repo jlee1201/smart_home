@@ -17,7 +17,6 @@ import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { GraphQLSchema } from 'graphql';
-import { PubSub } from 'graphql-subscriptions';
 
 // Define a compatible WebSocketServer type that works with useServer
 type CompatibleWebSocketServer = WebSocketServer & {

@@ -457,6 +457,24 @@ class TVService {
           
           // Fall back to updating local state in case of error to keep UI in sync
           this.updateLocalState(command, value);
+          
+          // If it's a server error, add to error log and return false to indicate failure
+          if (backError instanceof Error && backError.message.includes('Server error')) {
+            try {
+              const { addErrorToLog } = await import('../resolvers.js');
+              const pubsub = (global as any).pubsub;
+              if (pubsub && addErrorToLog) {
+                await addErrorToLog(
+                  pubsub, 
+                  `Failed to send BACK command to TV`,
+                  `The TV returned an error when processing this command.`
+                );
+              }
+            } catch (logError) {
+              logger.debug('Could not add to error log channel', { logError });
+            }
+            return false;
+          }
         }
         
         return true;
@@ -547,8 +565,37 @@ class TVService {
       return true;
     } catch (error) {
       logger.error('Error sending command to TV', { error });
+      
+      // Add to error log panel - will show in UI
+      try {
+        const { addErrorToLog } = await import('../resolvers.js');
+        const pubsub = (global as any).pubsub;
+        if (pubsub && addErrorToLog) {
+          await addErrorToLog(
+            pubsub, 
+            `Failed to send TV command: ${command}`,
+            JSON.stringify({
+              request: {
+                command,
+                value: value || null
+              },
+              response: {
+                error: error instanceof Error ? error.message : String(error)
+              }
+            }, null, 2)
+          );
+        }
+      } catch (logError) {
+        logger.debug('Could not add to error log channel', { logError });
+      }
+      
       // If there's an error, update the local state to provide some feedback
-      this.updateLocalState(command, value);
+      // but only for non-server errors where the command might actually have worked
+      // but we just couldn't confirm it
+      if (!(error instanceof Error && error.message.includes('Server error'))) {
+        this.updateLocalState(command, value);
+      }
+      
       return false;
     }
   }

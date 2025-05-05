@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { gql, useQuery, useSubscription } from '@apollo/client';
+import { gql, useQuery, useSubscription, useMutation } from '@apollo/client';
 import { Collapsible } from '@design-system';
 
 const ERROR_LOGS_QUERY = gql`
@@ -21,6 +21,12 @@ const ERROR_LOG_SUBSCRIPTION = gql`
       message
       details
     }
+  }
+`;
+
+const CLEAR_ERROR_LOGS_MUTATION = gql`
+  mutation ClearErrorLogs {
+    clearErrorLogs
   }
 `;
 
@@ -47,6 +53,13 @@ export const ErrorLog: React.FC = () => {
       }
     }
   );
+
+  // Mutation to clear error logs
+  const [clearErrorLogs, { loading: clearingLogs }] = useMutation(CLEAR_ERROR_LOGS_MUTATION, {
+    onError: (error) => {
+      console.error('Error clearing logs:', error);
+    }
+  });
   
   // Initialize from query
   useEffect(() => {
@@ -74,6 +87,11 @@ export const ErrorLog: React.FC = () => {
   const formatTime = (timestamp: number) => {
     return new Date(timestamp).toLocaleTimeString();
   };
+
+  // Handle clear logs
+  const handleClearLogs = () => {
+    clearErrorLogs();
+  };
   
   // If no errors and no subscription error, don't render anything
   if (errorLogs.length === 0 && !subscriptionError) {
@@ -93,6 +111,16 @@ export const ErrorLog: React.FC = () => {
         className="error-log-collapsible"
         isOpen={hasNewErrors}
       >
+        <div className="error-log-header">
+          <button 
+            onClick={handleClearLogs} 
+            className="error-log-clear-button"
+            disabled={clearingLogs || errorLogs.length === 0}
+          >
+            {clearingLogs ? 'Clearing...' : 'Clear All'}
+          </button>
+        </div>
+        
         {subscriptionError && (
           <div className="error-log-item">
             <div className="error-log-time">Now</div>

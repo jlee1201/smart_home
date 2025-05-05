@@ -1,6 +1,6 @@
 import React from 'react';
 
-type ButtonVariant = 'primary' | 'secondary' | 'text';
+type ButtonVariant = 'primary' | 'secondary' | 'text' | 'danger';
 type ButtonSize = 'sm' | 'md' | 'lg';
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -24,6 +24,7 @@ export const Button: React.FC<ButtonProps> = ({
   if (variant === 'primary') variantClass = 'farmhouse-btn-primary';
   else if (variant === 'secondary') variantClass = 'farmhouse-btn-secondary';
   else if (variant === 'text') variantClass = 'farmhouse-btn-text';
+  else if (variant === 'danger') variantClass = 'farmhouse-btn-danger';
   
   let sizeClass = '';
   if (size === 'sm') sizeClass = 'btn-sm';
