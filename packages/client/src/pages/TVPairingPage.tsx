@@ -27,6 +27,18 @@ const COMPLETE_PAIRING_MUTATION = gql`
   }
 `;
 
+const RESET_TV_CONNECTION_MUTATION = gql`
+  mutation ResetTVConnection {
+    resetTVConnection
+  }
+`;
+
+const CANCEL_TV_PAIRING_MUTATION = gql`
+  mutation CancelTVPairing {
+    cancelTVPairing
+  }
+`;
+
 export function TVPairingPage() {
   const [pin, setPin] = useState('');
   const [challengeCode, setChallengeCode] = useState('');
@@ -40,14 +52,22 @@ export function TVPairingPage() {
   // Mutations
   const [initiatePairing, { loading: initiateLoading }] = useMutation(INITIATE_PAIRING_MUTATION, {
     onCompleted: (data) => {
-      if (data.initiateTVPairing.challengeCode) {
-        setChallengeCode(data.initiateTVPairing.challengeCode);
+      const code = data.initiateTVPairing.challengeCode;
+      
+      if (code) {
+        setChallengeCode(code === "PIN_ON_SCREEN" ? 
+          "The PIN is displayed on your TV screen" : 
+          code);
         setPairingInProgress(true);
         setErrorMessage('');
       }
     },
     onError: (error) => {
-      setErrorMessage(`Failed to initiate pairing: ${error.message}`);
+      // If we have an error but the PIN is actually displayed on TV, 
+      // let's continue anyway
+      setPairingInProgress(true);
+      setChallengeCode("Enter the PIN shown on your TV screen");
+      setErrorMessage(`Error: ${error.message}. If you see a PIN on your TV, please enter it anyway.`);
     }
   });
   
@@ -63,14 +83,60 @@ export function TVPairingPage() {
       }
     },
     onError: (error) => {
-      setErrorMessage(`Failed to complete pairing: ${error.message}`);
+      // Check if this is a PIN rejection error
+      if (error.message.includes('Invalid PIN') || 
+          error.message.includes('INVALID_PIN') || 
+          error.message.includes('PIN entered was incorrect')) {
+        setErrorMessage(`Failed to pair: The PIN was rejected by your TV. Please make sure you entered the correct PIN shown on your TV screen.`);
+        // Keep the pairing UI open so they can try again
+      } else if (error.message.includes('INVALID_PARAMETER') || 
+                error.message.includes('pairing session expired') || 
+                error.message.includes('restart the pairing')) {
+        setErrorMessage(`The pairing session has expired or is invalid. Please close this dialog and click "Start Pairing" again.`);
+        // Keep the error visible but close the PIN entry form
+        setPairingInProgress(false);
+      } else {
+        setErrorMessage(`Failed to complete pairing: ${error.message}`);
+      }
+    }
+  });
+  
+  const [resetTVConnection, { loading: resetLoading }] = useMutation(RESET_TV_CONNECTION_MUTATION, {
+    onCompleted: () => {
+      setSuccessMessage('TV connection reset. You can now pair again.');
+      refetchConnection();
+    },
+    onError: (error) => {
+      setErrorMessage(`Failed to reset TV connection: ${error.message}`);
+    }
+  });
+  
+  const [cancelTVPairing, { loading: cancelLoading }] = useMutation(CANCEL_TV_PAIRING_MUTATION, {
+    onCompleted: () => {
+      setSuccessMessage('Any existing pairing requests have been canceled. You can now start a new pairing process.');
+    },
+    onError: (error) => {
+      setErrorMessage(`Failed to cancel pairing: ${error.message}`);
     }
   });
   
   const handleInitiatePairing = () => {
     setSuccessMessage('');
     setErrorMessage('');
+    setPairingInProgress(false); // Reset pairing status to start fresh
     initiatePairing();
+  };
+  
+  const handleResetTVConnection = () => {
+    setSuccessMessage('');
+    setErrorMessage('');
+    resetTVConnection();
+  };
+  
+  const handleCancelTVPairing = () => {
+    setSuccessMessage('');
+    setErrorMessage('');
+    cancelTVPairing();
   };
   
   const handleCompletePairing = () => {
@@ -87,7 +153,7 @@ export function TVPairingPage() {
   };
   
   const isConnected = connectionData?.tvConnectionStatus?.connected === true;
-  const loading = connectionLoading || initiateLoading || completeLoading;
+  const loading = connectionLoading || initiateLoading || completeLoading || resetLoading || cancelLoading;
   
   return (
     <div>
@@ -109,6 +175,31 @@ export function TVPairingPage() {
                 <p className="text-green-600">
                   Your TV is connected and ready to use. You can access the remote control from the TV Remote page.
                 </p>
+              )}
+              
+              {isConnected && (
+                <div className="mt-4">
+                  <div className="flex gap-4 mb-2">
+                    <Button 
+                      variant="secondary"
+                      onClick={handleInitiatePairing}
+                      disabled={loading}
+                    >
+                      Force Re-pair TV
+                    </Button>
+                    <Button 
+                      variant="secondary"
+                      onClick={handleResetTVConnection}
+                      disabled={loading}
+                    >
+                      Reset Connection
+                    </Button>
+                  </div>
+                  <p className="text-sm text-gray-600 mt-2">
+                    If the remote isn't working, try "Reset Connection" first. If that doesn't work, 
+                    use "Force Re-pair TV" to start a new pairing session without rebooting your TV.
+                  </p>
+                </div>
               )}
             </div>
           )}
@@ -144,6 +235,7 @@ export function TVPairingPage() {
                 <div className="mb-4 p-4 bg-blue-100 text-blue-700 rounded">
                   <p className="font-bold mb-2">Please look at your TV screen</p>
                   <p>A pairing code should appear on your TV. Enter it below to complete the pairing process.</p>
+                  <p className="text-sm mt-2">Note: You must enter the PIN within 60 seconds before the pairing session expires.</p>
                 </div>
                 
                 <div className="mb-4">
@@ -172,6 +264,7 @@ export function TVPairingPage() {
                   onClick={() => {
                     setPairingInProgress(false);
                     setChallengeCode('');
+                    setPin('');
                   }}
                   disabled={loading}
                 >

@@ -1,11 +1,7 @@
 {
-  "watch": ["src"],
-  "ext": "ts,json",
-  "ignore": ["src/**/*.spec.ts"],
-  "exec": "node --loader ts-node/esm src/index.ts",
-  "delay": "1500",
-  "events": {
-    "restart": "npm run kill-port",
-    "crash": "npm run kill-port"
-  }
+  "watch": ["dist"],
+  "ext": "js,json",
+  "ignore": ["dist/**/*.spec.js"],
+  "exec": "npx kill-port 8000 && node dist/index.js",
+  "delay": "1500"
 } 

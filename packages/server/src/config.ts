@@ -9,8 +9,12 @@ import type { Config } from './types/config.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load environment variables
+// Load environment variables from .env file
 dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
+
+// Set feature flags with defaults
+process.env.ENABLE_TV_CONNECTION = process.env.ENABLE_TV_CONNECTION || 'false';
+process.env.ENABLE_AVR_CONNECTION = process.env.ENABLE_AVR_CONNECTION || 'false';
 
 const nodeEnv = process.env.NODE_ENV || 'development';
 

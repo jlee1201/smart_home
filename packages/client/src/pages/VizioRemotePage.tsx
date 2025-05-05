@@ -52,7 +52,7 @@ export function VizioRemotePage() {
   const [currentInput, setCurrentInput] = useState('HDMI_1');
   
   // Query initial TV status
-  const { loading: queryLoading, data: queryData } = useQuery<{ 
+  const { loading: queryLoading, data: queryData, error: queryError, refetch: refetchStatus } = useQuery<{ 
     tvStatus: TVStatus; 
     tvConnectionStatus: { connected: boolean } 
   }>(TV_STATUS_QUERY, {
@@ -67,7 +67,10 @@ export function VizioRemotePage() {
     },
     onError: (error) => {
       console.error('Error fetching TV status:', error);
-    }
+    },
+    // Poll every 5 seconds to detect connection changes
+    pollInterval: 5000,
+    fetchPolicy: 'network-only' // Don't use cache for status updates
   });
   
   // Subscribe to TV status changes
@@ -101,11 +104,45 @@ export function VizioRemotePage() {
   
   const [sendCommand, { loading: commandLoading }] = useMutation(SEND_TV_COMMAND);
   
+  // Add a state for the error message
+  const [errorMessage, setErrorMessage] = useState<string>('');
+  
+  // Add effect to check connection status and redirect if disconnected
+  useEffect(() => {
+    // If we have data and TV is not connected, redirect to the pairing page
+    if (queryData && !queryData.tvConnectionStatus.connected) {
+      setErrorMessage('TV connection lost. Please set up your TV again.');
+      // Add a small delay before redirecting
+      const redirectTimer = setTimeout(() => {
+        window.location.href = '/tv-pairing';
+      }, 3000);
+      
+      return () => clearTimeout(redirectTimer);
+    }
+  }, [queryData]);
+  
+  // Add effect to refetch status if there's an error
+  useEffect(() => {
+    if (queryError) {
+      setErrorMessage('Error communicating with TV. Will attempt to reconnect...');
+      // Try to refetch after a delay
+      const refetchTimer = setTimeout(() => {
+        refetchStatus();
+      }, 5000);
+      
+      return () => clearTimeout(refetchTimer);
+    }
+  }, [queryError, refetchStatus]);
+  
   const handleCommand = async (command: string, value?: string) => {
     try {
+      setErrorMessage(''); // Clear any existing error
       await sendCommand({ variables: { command, value } });
     } catch (error) {
       console.error('Error sending command:', error);
+      setErrorMessage('Failed to send command to TV. The connection may have been lost.');
+      // Also try to refetch the status to see if we're still connected
+      refetchStatus();
     }
   };
 
@@ -134,6 +171,12 @@ export function VizioRemotePage() {
   return (
     <div>
       <h2>Vizio TV Remote Control</h2>
+      
+      {errorMessage && (
+        <div className="mb-4 p-4 bg-red-100 text-red-700 rounded">
+          {errorMessage}
+        </div>
+      )}
       
       <div className="grid grid-cols-1 gap-8 mt-6">
         <Card title="Status" subtitle="Current TV status">

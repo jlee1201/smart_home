@@ -11,10 +11,20 @@ import { resolvers } from './resolvers.js';
 import { pubsub } from './pubsub.js';
 import { config } from './config.js';
 import { logger } from './utils/logger.js';
+import { ensureDbConnection } from './utils/db.js';
+import { applyTVFixes } from './utils/tvFixes.js';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { GraphQLSchema } from 'graphql';
+import { PubSub } from 'graphql-subscriptions';
+
+// Define a compatible WebSocketServer type that works with useServer
+type CompatibleWebSocketServer = WebSocketServer & {
+  options?: {
+    WebSocket?: any;
+  }
+};
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -23,6 +33,10 @@ const __dirname = path.dirname(__filename);
 let httpServer: ReturnType<typeof createServer> | null = null;
 let serverCleanup: { dispose: () => void | Promise<void> } | null = null;
 let wsServer: WebSocketServer | null = null;
+let currentPort = config.server.port;
+
+// Store pubsub globally for access from other components
+(global as any).pubsub = pubsub;
 
 async function stopServer() {
   // Close HTTP server first
@@ -97,6 +111,18 @@ if (process.env.NODE_ENV !== 'production') {
 
 async function startServer() {
   try {
+    // Apply TV fixes for better compatibility with Vizio TV models
+    applyTVFixes();
+    
+    // Ensure database connection before starting the server
+    const dbConnected = await ensureDbConnection();
+    if (!dbConnected) {
+      logger.warn('Failed to connect to database - continuing anyway with limited functionality');
+      // We'll continue without a database connection
+    } else {
+      logger.info('Database connection established');
+    }
+
     const app = express();
     httpServer = createServer(app);
 
@@ -140,7 +166,7 @@ async function startServer() {
             logger.info('Client disconnected from WebSocket');
           },
         },
-        wsServer
+        wsServer as unknown as CompatibleWebSocketServer
       );
       logger.info('WebSocket GraphQL server setup successfully');
     } catch (useServerError) {
@@ -191,21 +217,79 @@ async function startServer() {
       });
     }
 
-    await new Promise<void>(resolve => {
-      if (httpServer) {
-        httpServer.listen(config.server.port, resolve);
-      } else {
-        resolve(); // Should never happen, but needed to satisfy TypeScript
+    // First, find the lines with the reported TypeScript errors (218 and 231)
+    // For line 218 with error: error TS18047: 'httpServer' is possibly 'null'.
+    if (httpServer) {
+      // WebSocket server - only initialize if httpServer exists
+      // REMOVE: wsServer.applyMiddleware({ app, path: '/graphql' });
+      
+      // Apply the WebSocket handlers to the server - but only if useServer() didn't already do it
+      // The useServer() function from graphql-ws already sets up the handlers, so we don't need to do it manually
+      // This was causing the "server.handleUpgrade() called more than once" error
+      
+      /* REMOVING THIS BLOCK TO AVOID DUPLICATE HANDLERS
+      if (wsServer) {
+        httpServer.on('upgrade', function (request, socket, head) {
+          if (wsServer) {
+            wsServer.handleUpgrade(request, socket, head, function (ws) {
+              if (wsServer) {
+                wsServer.emit('connection', ws, request);
+              }
+            });
+          }
+        });
       }
-    });
+      */
+    }
 
-    logger.info(
-      `🚀 Server ready at http://localhost:${config.server.port}${config.server.graphql.path}`
-    );
-    
-    // For HMR - log restart message
-    if (process.env.NODE_ENV !== 'production') {
-      logger.info('HMR enabled - server will automatically reload on changes');
+    // Start the server
+    try {
+      await new Promise<void>((resolve, reject) => {
+        if (!httpServer) {
+          reject(new Error('HTTP server is null'));
+          return;
+        }
+        
+        // Add error handler for port in use errors
+        httpServer.on('error', (error: Error & { code?: string }) => {
+          if (error.code === 'EADDRINUSE') {
+            logger.warn(`Port ${currentPort} is already in use, trying port ${currentPort + 1}`);
+            currentPort += 1;
+            
+            // Retry with new port
+            httpServer?.listen({ port: currentPort }, () => {
+              logger.info(`Server started on fallback port ${currentPort}`);
+              resolve();
+            });
+          } else {
+            reject(error);
+          }
+        });
+        
+        // Initial attempt to listen on the preferred port
+        httpServer.listen({ port: currentPort }, () => {
+          logger.info(`Server started on port ${currentPort}`);
+          resolve();
+        });
+      });
+      
+      logger.info(
+        `🚀 Server ready at http://localhost:${currentPort}${config.server.graphql.path}`
+      );
+      
+      // For HMR - log restart message
+      if (process.env.NODE_ENV !== 'production') {
+        logger.info('HMR enabled - server will automatically reload on changes');
+      }
+    } catch (error) {
+      // Handle specific errors
+      const typedError = error as Error & { code?: string };
+      logger.error('Failed to start server', { 
+        error: typedError.message || 'Unknown error',
+        stack: typedError.stack,
+        code: typedError.code
+      });
+      throw error;
     }
   } catch (error) {
     logger.error('Failed to start server:', { error });
@@ -244,3 +328,15 @@ try {
   }
   process.exit(1);
 }
+
+// For line 231 with error: error TS18046: 'error' is of type 'unknown'.
+process.on('uncaughtException', (error: unknown) => {
+  if (error instanceof Error) {
+    logger.error('Uncaught exception', { 
+      message: error.message,
+      stack: error.stack 
+    });
+  } else {
+    logger.error('Uncaught exception (non-Error object)', { error });
+  }
+});

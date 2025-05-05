@@ -523,4 +523,163 @@ input {
 input:disabled {
   background-color: #f5f5f5;
   cursor: not-allowed;
+}
+
+/* Collapsible component */
+.farmhouse-collapsible {
+  border: 1px solid var(--farmhouse-beige);
+  border-radius: var(--farmhouse-radius);
+  margin-bottom: 1rem;
+  overflow: hidden;
+}
+
+.farmhouse-collapsible-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background-color: white;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background-color 0.2s;
+}
+
+.farmhouse-collapsible-header:hover {
+  background-color: var(--farmhouse-cream);
+}
+
+.farmhouse-collapsible-header.open {
+  border-bottom: 1px solid var(--farmhouse-beige);
+}
+
+.collapsible-title {
+  flex: 1;
+}
+
+.collapsible-icon {
+  margin-left: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--farmhouse-brown);
+}
+
+.farmhouse-collapsible-header[aria-expanded="true"] .collapsible-icon {
+  transform: rotate(180deg);
+}
+
+.farmhouse-collapsible-content {
+  padding: 1rem;
+  background-color: white;
+}
+
+/* Error collapsible specific styles */
+.error-log-collapsible {
+  border-color: #f44336;
+}
+
+.error-log-collapsible .farmhouse-collapsible-header {
+  background-color: #fff8f8;
+}
+
+.error-log-collapsible .farmhouse-collapsible-header:hover {
+  background-color: #ffebeb;
+}
+
+.error-log-collapsible .collapsible-icon {
+  color: #f44336;
+}
+
+.error-log-item {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #ffebeb;
+}
+
+.error-log-item:last-child {
+  border-bottom: none;
+}
+
+.error-log {
+  position: fixed;
+  bottom: 1rem;
+  right: 1rem;
+  z-index: 1000;
+  width: 350px;
+  max-width: 90vw;
+}
+
+/* Add fixed height with scrolling to error log content */
+.error-log-collapsible .farmhouse-collapsible-content {
+  max-height: 300px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+/* Style the scrollbar for WebKit browsers */
+.error-log-collapsible .farmhouse-collapsible-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.error-log-collapsible .farmhouse-collapsible-content::-webkit-scrollbar-track {
+  background: #f8f8f8;
+}
+
+.error-log-collapsible .farmhouse-collapsible-content::-webkit-scrollbar-thumb {
+  background-color: #ddd;
+  border-radius: 3px;
+}
+
+.error-log-indicator {
+  color: #f44336;
+  font-weight: bold;
+  animation: pulse 2s infinite;
+}
+
+.error-log-time {
+  font-size: 0.8rem;
+  color: var(--farmhouse-charcoal);
+  margin-bottom: 0.25rem;
+}
+
+.error-log-message {
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+}
+
+.error-log-details {
+  margin-top: 0.25rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.error-log-details summary {
+  cursor: pointer;
+  user-select: none;
+  color: var(--farmhouse-accent-blue);
+}
+
+.error-log-details pre {
+  background-color: #f8f8f8;
+  padding: 0.5rem;
+  border-radius: 4px;
+  overflow-x: auto;
+  margin-top: 0.5rem;
+}
+
+.error-log-empty {
+  color: var(--farmhouse-brown);
+  font-style: italic;
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 1;
+  }
 } 

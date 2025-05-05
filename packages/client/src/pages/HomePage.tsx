@@ -10,6 +10,14 @@ const TV_CONNECTION_STATUS_QUERY = gql`
   }
 `;
 
+const DENON_AVR_CONNECTION_STATUS_QUERY = gql`
+  query GetDenonAvrConnectionStatus {
+    denonAvrConnectionStatus {
+      connected
+    }
+  }
+`;
+
 interface HomePageProps {
   message: string;
   currentInput: string;
@@ -17,8 +25,10 @@ interface HomePageProps {
 
 export function HomePage({ message, currentInput }: HomePageProps) {
   const { data: tvConnectionData } = useQuery(TV_CONNECTION_STATUS_QUERY);
+  const { data: denonAvrConnectionData } = useQuery(DENON_AVR_CONNECTION_STATUS_QUERY);
   
   const isTVConnected = tvConnectionData?.tvConnectionStatus?.connected === true;
+  const isDenonAvrConnected = denonAvrConnectionData?.denonAvrConnectionStatus?.connected === true;
   
   return (
     <div>
@@ -62,6 +72,21 @@ export function HomePage({ message, currentInput }: HomePageProps) {
               Set Up TV Connection
             </Link>
           )}
+        </Card>
+
+        <Card
+          title="Denon AVR Status"
+          subtitle="AV Receiver connection status"
+        >
+          <p className="mb-4">
+            Status: <span className={`font-medium ${isDenonAvrConnected ? 'text-green-600' : 'text-red-600'}`}>
+              {isDenonAvrConnected ? 'Connected' : 'Not Connected'}
+            </span>
+          </p>
+          
+          <Link to="/denon-avr-remote" className="farmhouse-btn farmhouse-btn-primary">
+            Open AVR Remote
+          </Link>
         </Card>
       </div>
     </div>

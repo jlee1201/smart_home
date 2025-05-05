@@ -4,7 +4,9 @@ import { HomePage } from '@/pages/HomePage';
 import { InputPage } from '@/pages/InputPage';
 import { VizioRemotePage } from '@/pages/VizioRemotePage';
 import { TVPairingPage } from '@/pages/TVPairingPage';
+import { DenonAvrRemotePage } from '@/pages/DenonAvrRemotePage';
 import { Layout } from '@design-system';
+import { ErrorLog } from '@/components/ErrorLog';
 
 const HELLO_QUERY = gql`
   query GetHello {
@@ -89,7 +91,11 @@ export function App() {
         <Route path="/input" element={<InputPage />} />
         <Route path="/vizio-remote" element={<VizioRemotePage />} />
         <Route path="/tv-pairing" element={<TVPairingPage />} />
+        <Route path="/denon-avr-remote" element={<DenonAvrRemotePage />} />
       </Routes>
+      
+      {/* Error Log component */}
+      <ErrorLog />
     </Layout>
   );
 }
