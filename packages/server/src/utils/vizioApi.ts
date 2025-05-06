@@ -2,6 +2,7 @@ import axios from 'axios';
 import crypto from 'crypto';
 import https from 'node:https';
 import { logger } from './logger.js';
+import { BUTTON_DEBUG_CHANNEL } from '../resolvers.js';
 
 // Type definitions for Vizio API
 export type VizioTVConfig = {
@@ -731,73 +732,80 @@ export class VizioAPI {
    * Send remote key press
    */
   async sendKeyPress(key: string, retryCount = 2): Promise<void> {
-    // Special codesets for M65Q7-H1 model
-    // Different keys need different CODESET values based on Vizio API documentation
+    // Use the correct codesets and codes based on Vizio SmartCast API documentation
     const KEY_CODESET_MAP: Record<string, number> = {
-      'BACK': 4,       // Navigation uses CODESET 4 (confirmed by testing)
-      'UP': 3,         // D-Pad uses CODESET 3 (confirmed by testing)
-      'DOWN': 3,       // D-Pad uses CODESET 3 (confirmed by testing)
-      'LEFT': 3,       // D-Pad uses CODESET 3 (confirmed by testing)
-      'RIGHT': 4,      // RIGHT uses CODESET 4 (confirmed by testing)
-      'OK': 4,         // OK uses CODESET 4 with CODE 5 (confirmed by testing)
-      'HOME': 3,       // HOME uses CODESET 3 with CODE 7 (confirmed by testing)
-      'MENU': 4,       // MENU uses CODESET 4 (confirmed by testing)
-      'EXIT': 4,       // EXIT uses CODESET 4 with CODE 1 (confirmed by testing)
-      'POWER': 11,     // Power uses CODESET 11 (per Vizio API docs)
-      'VOL_UP': 5,     // Volume keys use CODESET 5 (per Vizio API docs)
-      'VOL_DOWN': 5,   // Volume keys use CODESET 5 (per Vizio API docs)
-      'MUTE': 5,       // Mute uses CODESET 5 (per Vizio API docs)
-      'CH_UP': 8,      // Channel keys use CODESET 8 (per Vizio API docs)
-      'CH_DOWN': 8     // Channel keys use CODESET 8 (per Vizio API docs)
+      // Navigation keys
+      'UP': 3,         // D-Pad up - codeset 3, code 8
+      'DOWN': 3,       // D-Pad down - codeset 3, code 0
+      'LEFT': 3,       // D-Pad left - codeset 3, code 1
+      'RIGHT': 3,      // D-Pad right - codeset 3, code 7
+      'OK': 3,         // OK/select - codeset 3, code 2
+      'BACK': 4,       // Navigation back - codeset 4, code 0
+      'EXIT': 9,       // Exit - codeset 9, code 0
+      'INFO': 4,       // Info - codeset 4, code 3
+      'MENU': 4,       // Menu - codeset 4, code 8
+      'HOME': 4,       // Home - codeset 4, code 15
+      
+      // Media control - codeset 2
+      'PLAY': 2,       // Play - codeset 2, code 3
+      'PAUSE': 2,      // Pause - codeset 2, code 2
+      'STOP': 2,       // Stop - codeset 2, code 0
+      'FORWARD': 2,    // Forward/seek forward - codeset 2, code 0
+      'REWIND': 2,     // Rewind/seek back - codeset 2, code 1
+      'CC': 4,         // Closed Caption - codeset 4, code 4
+      
+      // Volume and channel
+      'POWER': 11,     // Power toggle - codeset 11, code 2
+      'POWER_OFF': 11, // Power off - codeset 11, code 0
+      'POWER_ON': 11,  // Power on - codeset 11, code 1
+      'VOL_UP': 5,     // Volume up - codeset 5, code 1
+      'VOL_DOWN': 5,   // Volume down - codeset 5, code 0
+      'MUTE': 5,       // Mute - codeset 5, code 3
+      'UNMUTE': 5,     // Unmute - codeset 5, code 2
+      'MUTE_TOGGLE': 5,// Mute toggle - codeset 5, code 4
+      'CH_UP': 8,      // Channel up - codeset 8, code 1
+      'CH_DOWN': 8,    // Channel down - codeset 8, code 0
+      'CH_PREV': 8,    // Previous channel - codeset 8, code 2
+      'INPUT': 7,      // Cycle input - codeset 7, code 1
     };
     
-    // Key to code mapping for navigation keys that need numeric codes
+    // Key to code mapping with the correct codes from the API documentation
     const KEY_CODE_MAP: Record<string, number> = {
-      'BACK': 0,       // BACK = CODE 0 in CODESET 4 (confirmed by testing)
-      'UP': 0,         // UP = CODE 0 in CODESET 3 (confirmed by testing)
-      'DOWN': 1,       // DOWN = CODE 1 in CODESET 3 (confirmed by testing)
-      'LEFT': 2,       // LEFT = CODE 2 in CODESET 3 (confirmed by testing)
-      'RIGHT': 3,      // RIGHT = CODE 3 in CODESET 4 (confirmed by testing)
-      'OK': 5,         // OK = CODE 5 in CODESET 4 (confirmed by testing)
-      'HOME': 7,       // HOME = CODE 7 in CODESET 3 (confirmed by testing)
-      'MENU': 4,       // MENU = CODE 4 in CODESET 4 (confirmed by testing)
-      'EXIT': 1        // EXIT = CODE 1 in CODESET 4 (confirmed by testing)
+      'UP': 8,         // UP = CODE 8 in CODESET 3
+      'DOWN': 0,       // DOWN = CODE 0 in CODESET 3
+      'LEFT': 1,       // LEFT = CODE 1 in CODESET 3
+      'RIGHT': 7,      // RIGHT = CODE 7 in CODESET 3
+      'OK': 2,         // OK = CODE 2 in CODESET 3
+      'BACK': 0,       // BACK = CODE 0 in CODESET 4
+      'EXIT': 0,       // EXIT = CODE 0 in CODESET 9
+      'INFO': 3,       // INFO = CODE 3 in CODESET 4
+      'MENU': 8,       // MENU = CODE 8 in CODESET 4
+      'HOME': 15,      // HOME = CODE 15 in CODESET 4
+      
+      // Media control codes
+      'PLAY': 3,       // PLAY = CODE 3 in CODESET 2
+      'PAUSE': 2,      // PAUSE = CODE 2 in CODESET 2
+      'STOP': 0,       // STOP = CODE 0 in CODESET 2
+      'FORWARD': 0,    // FORWARD = CODE 0 in CODESET 2
+      'REWIND': 1,     // REWIND = CODE 1 in CODESET 2
+      'CC': 4,         // CLOSED CAPTION = CODE 4 in CODESET 4
+      
+      // Volume and channel codes
+      'POWER': 2,      // POWER toggle = CODE 2 in CODESET 11
+      'POWER_OFF': 0,  // POWER off = CODE 0 in CODESET 11
+      'POWER_ON': 1,   // POWER on = CODE 1 in CODESET 11
+      'VOL_UP': 1,     // VOL_UP = CODE 1 in CODESET 5
+      'VOL_DOWN': 0,   // VOL_DOWN = CODE 0 in CODESET 5
+      'MUTE': 3,       // MUTE = CODE 3 in CODESET 5
+      'UNMUTE': 2,     // UNMUTE = CODE 2 in CODESET 5
+      'MUTE_TOGGLE': 4,// MUTE toggle = CODE 4 in CODESET 5
+      'CH_UP': 1,      // CH_UP = CODE 1 in CODESET 8
+      'CH_DOWN': 0,    // CH_DOWN = CODE 0 in CODESET 8
+      'CH_PREV': 2,    // CH_PREV = CODE 2 in CODESET 8
+      'INPUT': 1,      // INPUT cycle = CODE 1 in CODESET 7
     };
     
-    // For problematic buttons, try these alternative codesets as fallbacks
-    const ALTERNATIVE_CODESETS: Record<string, number[]> = {
-      'BACK': [4, 3],
-      'UP': [3, 4],
-      'DOWN': [3, 4],
-      'LEFT': [3, 4],
-      'RIGHT': [4, 3],
-      'OK': [4, 3],
-      'HOME': [3, 4],
-      'MENU': [4, 3],
-      'EXIT': [4, 3, 5]
-    };
-    
-    // Multiple formats to try for this TV model - FIXED: removed data wrapper
-    // since sendRequest doesn't wrap data for key_command/ endpoint
-    const formats = [
-      // Format 1: KEYLIST with CODESET/CODE format for navigation keys
-      { KEYLIST: [
-        KEY_CODE_MAP[key] !== undefined ? 
-          { CODESET: KEY_CODESET_MAP[key] || 4, CODE: KEY_CODE_MAP[key], ACTION: "KEYPRESS" } :
-          key
-      ]},
-      
-      // Format 2: CODESET format with the right codeset for the key
-      { CODESET: KEY_CODESET_MAP[key] || 5, CODE: key, ACTION: "KEYPRESS" },
-      
-      // Format 3: Single key format
-      { key: key },
-      
-      // Format 4: Alternative key format with KEY instead of key
-      { KEY: key }
-    ];
-    
-    // Some keys need special mapping for M65Q7-H1 model
+    // Some keys need special mapping for the TV model
     const specialKeys: Record<string, string> = {
       'VOLUME_UP': 'VOL_UP',
       'VOLUME_DOWN': 'VOL_DOWN',
@@ -812,166 +820,130 @@ export class VizioAPI {
     // Apply special key mapping if needed
     const actualKey = specialKeys[key] || key;
     
-    let lastError: any = null;
+    // Publish debug information about this key press
+    try {
+      const pubsub = (global as any).pubsub;
+      if (pubsub) {
+        const debugInfo = {
+          key: actualKey,
+          codeset: KEY_CODESET_MAP[actualKey] !== undefined ? KEY_CODESET_MAP[actualKey] : 'N/A',
+          code: KEY_CODE_MAP[actualKey] !== undefined ? KEY_CODE_MAP[actualKey] : 'N/A'
+        };
+        
+        logger.debug('Publishing button debug info', debugInfo);
+        pubsub.publish(BUTTON_DEBUG_CHANNEL, { buttonDebugInfo: debugInfo });
+      }
+    } catch (pubError) {
+      logger.debug('Could not publish button debug info', { pubError });
+    }
     
-    // For problematic buttons, try multiple codesets
-    if (ALTERNATIVE_CODESETS[actualKey]) {
-      // Try each codeset for this problematic button
-      for (const codeset of ALTERNATIVE_CODESETS[actualKey]) {
-        try {
-          // Use the numeric codeset/code format for navigation keys
-          if (KEY_CODE_MAP[actualKey] !== undefined) {
-            const data = {
-              KEYLIST: [{ 
-                CODESET: codeset,
-                CODE: KEY_CODE_MAP[actualKey],
-                ACTION: "KEYPRESS" 
-              }]
-            };
-            
-            logger.debug(`Trying problematic key ${actualKey} with CODESET=${codeset}, CODE=${KEY_CODE_MAP[actualKey]}`);
-            const response = await this.sendRequest('/key_command/', 'PUT', data);
-            
-            // Check if the response indicates success
-            if (response && response.STATUS && response.STATUS.RESULT === "SUCCESS") {
-              logger.info(`Key press ${actualKey} successful with CODESET=${codeset}`, { response });
-              return; // Success, exit function
-            }
-            
-            logger.warn(`Key press ${actualKey} failed with CODESET=${codeset}: ${response?.STATUS?.DETAIL || 'unknown error'}`);
-          }
-        } catch (error) {
-          logger.warn(`Error sending key press ${actualKey} with CODESET=${codeset}`, { 
-            error: error instanceof Error ? error.message : String(error)
-          });
+    try {
+      // Check if this is a key that has a specific codeset/code mapping
+      if (KEY_CODE_MAP[actualKey] !== undefined && KEY_CODESET_MAP[actualKey] !== undefined) {
+        // Use the numeric codeset/code format for mapped keys
+        const data = {
+          KEYLIST: [{ 
+            CODESET: KEY_CODESET_MAP[actualKey],
+            CODE: KEY_CODE_MAP[actualKey],
+            ACTION: "KEYPRESS" 
+          }]
+        };
+        
+        logger.debug(`Sending key ${actualKey} with CODESET=${KEY_CODESET_MAP[actualKey]}, CODE=${KEY_CODE_MAP[actualKey]}`);
+        const response = await this.sendRequest('/key_command/', 'PUT', data);
+        
+        // Check if the response indicates success
+        if (response && response.STATUS && response.STATUS.RESULT === "SUCCESS") {
+          logger.info(`Key press ${actualKey} successful`, { response });
+          return;
         }
         
-        // Short pause between attempts
-        await new Promise(resolve => setTimeout(resolve, 200));
+        logger.warn(`Key press ${actualKey} failed: ${response?.STATUS?.DETAIL || 'unknown error'}`);
+        
+        // Log to error panel
+        try {
+          const { addErrorToLog } = await import('../resolvers.js');
+          const pubsub = (global as any).pubsub;
+          if (pubsub && addErrorToLog) {
+            await addErrorToLog(
+              pubsub, 
+              `Failed to send TV remote command: ${actualKey}`,
+              JSON.stringify({
+                request: {
+                  method: 'PUT',
+                  url: `${this.getBaseUrl()}/key_command/`,
+                  data: JSON.stringify(data, null, 2)
+                },
+                response: {
+                  status: response?.STATUS?.RESULT,
+                  detail: response?.STATUS?.DETAIL
+                }
+              }, null, 2)
+            );
+          }
+        } catch (logError) {
+          logger.debug('Could not add to error log channel', { logError });
+        }
+      } else {
+        // For keys without specific mapping, just use the key name
+        const data = {
+          KEYLIST: [actualKey]
+        };
+        
+        logger.debug(`Sending key ${actualKey} without specific mapping`);
+        const response = await this.sendRequest('/key_command/', 'PUT', data);
+        
+        // Check if the response indicates success
+        if (response && response.STATUS && response.STATUS.RESULT === "SUCCESS") {
+          logger.info(`Key press ${actualKey} successful`, { response });
+          return;
+        }
+        
+        logger.warn(`Key press ${actualKey} failed: ${response?.STATUS?.DETAIL || 'unknown error'}`);
+      }
+    } catch (error) {
+      // Log the error
+      logger.warn(`Error sending key press ${actualKey}`, { 
+        error: error instanceof Error ? error.message : String(error)
+      });
+      
+      // If we still have retries left, try again (unless it's a 500 server error)
+      if (retryCount > 0 && !(error instanceof Error && error.message.includes('Server error (500)'))) {
+        logger.info(`Retrying key press ${actualKey}, ${retryCount} attempts remaining`);
+        // Add a delay before retry
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        return this.sendKeyPress(key, retryCount - 1);
       }
       
-      // If we get here for a problematic button, all alternative codesets failed
-      // Fall back to the standard approach below
-      logger.warn(`All alternative codesets failed for ${actualKey}, falling back to standard approach`);
-    }
-    
-    // Standard approach for non-problematic buttons or if alternative codesets failed
-    // Try each format with decreasing delay between attempts
-    for (let i = 0; i < formats.length; i++) {
+      // Add error to the error log panel
       try {
-        // Clone the format to avoid modifying the original
-        const formatData = JSON.parse(JSON.stringify(formats[i]));
-        
-        // Special case for navigation buttons like BACK
-        if (i === 0 && KEY_CODE_MAP[actualKey] !== undefined) {
-          // Already properly formatted in the first format above
-          logger.debug(`Using numeric code format for ${actualKey}: CODESET=${KEY_CODESET_MAP[actualKey]}, CODE=${KEY_CODE_MAP[actualKey]}`);
-        } 
-        // For other formats, update the key in the format
-        else if (formatData.KEYLIST) {
-          formatData.KEYLIST = [actualKey];
-        } else if (formatData.CODE) {
-          formatData.CODE = actualKey;
-          // Use the appropriate CODESET for this key if available
-          if (KEY_CODESET_MAP[actualKey]) {
-            formatData.CODESET = KEY_CODESET_MAP[actualKey];
-          }
-        } else if (formatData.key) {
-          formatData.key = actualKey;
-        } else if (formatData.KEY) {
-          formatData.KEY = actualKey;
+        const { addErrorToLog } = await import('../resolvers.js');
+        const pubsub = (global as any).pubsub;
+        if (pubsub && addErrorToLog) {
+          await addErrorToLog(
+            pubsub, 
+            `Failed to send TV remote command: ${actualKey}`,
+            JSON.stringify({
+              request: {
+                method: 'PUT',
+                url: `${this.getBaseUrl()}/key_command/`,
+                data: KEY_CODE_MAP[actualKey] !== undefined ? 
+                  `CODESET: ${KEY_CODESET_MAP[actualKey]}, CODE: ${KEY_CODE_MAP[actualKey]}` : 
+                  `KEYLIST: [${actualKey}]`
+              },
+              response: {
+                error: error instanceof Error ? error.message : String(error)
+              }
+            }, null, 2)
+          );
         }
-        
-        // Make the request with the current format
-        const response = await this.sendRequest('/key_command/', 'PUT', formatData);
-        
-        // Check if the response contains an error
-        if (response && response.STATUS && response.STATUS.RESULT !== "SUCCESS") {
-          logger.warn(`Key press ${key} returned error: ${response.STATUS.DETAIL || response.STATUS.RESULT} with format ${i+1}`);
-          // Don't throw here, try next format
-        } else {
-          logger.info(`Key press ${key} sent successfully with format ${i+1}`, { response });
-          return; // Success, exit function
-        }
-      } catch (error) {
-        lastError = error;
-        logger.warn(`Error sending key press ${key} with format ${i+1}`, { 
-          error: error instanceof Error ? error.message : String(error)
-        });
-        
-        // For server errors, don't retry other formats - let the error propagate to the UI
-        if (error instanceof Error && error.message.includes('Server error (500)')) {
-          // Log the error to error panel
-          try {
-            const { addErrorToLog } = await import('../resolvers.js');
-            const pubsub = (global as any).pubsub;
-            if (pubsub && addErrorToLog) {
-              await addErrorToLog(
-                pubsub, 
-                `Failed to send TV remote command: ${key}`,
-                JSON.stringify({
-                  request: {
-                    method: 'PUT',
-                    url: `${this.getBaseUrl()}/key_command/`,
-                    data: JSON.stringify(formats[i], null, 2)
-                  },
-                  response: {
-                    error: error.message
-                  }
-                }, null, 2)
-              );
-            }
-          } catch (logError) {
-            logger.debug('Could not add to error log channel', { logError });
-          }
-          
-          // Throw the error to stop processing
-          throw new Error(`TV remote button ${key} failed: Server did not accept the command`);
-        }
-        
-        // Don't retry immediately, wait a bit (increasing delay for each format)
-        await new Promise(resolve => setTimeout(resolve, 300 * (i + 1)));
+      } catch (logError) {
+        logger.debug('Could not add to error log channel', { logError });
       }
+      
+      // If we've exhausted retries or hit a 500 error, throw the error
+      throw new Error(`TV remote command ${actualKey} failed: ${error instanceof Error ? error.message : String(error)}`);
     }
-    
-    // If all formats failed and we still have retries left, try again unless it was a server error
-    if (retryCount > 0 && !(lastError instanceof Error && lastError.message.includes('Server error (500)'))) {
-      logger.info(`Retrying key press ${key} with all formats, ${retryCount} attempts remaining`);
-      // Add a longer delay before full retry
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      return this.sendKeyPress(key, retryCount - 1);
-    }
-    
-    // Add error to the error log panel
-    try {
-      const { addErrorToLog } = await import('../resolvers.js');
-      const pubsub = (global as any).pubsub;
-      if (pubsub && addErrorToLog) {
-        await addErrorToLog(
-          pubsub, 
-          `Failed to send TV remote command: ${key}`,
-          JSON.stringify({
-            request: {
-              method: 'PUT',
-              url: `${this.getBaseUrl()}/key_command/`,
-              data: 'Attempted multiple format variations',
-              formats: JSON.stringify(formats, null, 2)
-            },
-            response: {
-              error: lastError instanceof Error ? lastError.message : String(lastError)
-            }
-          }, null, 2)
-        );
-      }
-    } catch (logError) {
-      logger.debug('Could not add to error log channel', { logError });
-    }
-    
-    // If we've run out of retries, don't throw - this allows the UI to continue working
-    // even if some commands fail
-    logger.warn(`Key press ${key} failed after all formats and retries`, {
-      error: lastError instanceof Error ? lastError.message : String(lastError)
-    });
   }
   
   /**
@@ -1130,9 +1102,13 @@ export async function createVizioAPIFromDB(dbSettings: any): Promise<VizioAPI> {
 // Map of command names to Vizio API key codes
 export const VIZIO_COMMANDS = {
   POWER: 'POWER',
+  POWER_ON: 'POWER_ON',
+  POWER_OFF: 'POWER_OFF',
   VOLUME_UP: 'VOL_UP',
   VOLUME_DOWN: 'VOL_DOWN',
   MUTE: 'MUTE',
+  UNMUTE: 'UNMUTE',
+  MUTE_TOGGLE: 'MUTE_TOGGLE',
   UP: 'UP',
   DOWN: 'DOWN',
   LEFT: 'LEFT',
@@ -1145,10 +1121,13 @@ export const VIZIO_COMMANDS = {
   PLAY: 'PLAY',
   PAUSE: 'PAUSE',
   STOP: 'STOP',
-  REWIND: 'REW',
-  FAST_FORWARD: 'FWD',
+  REWIND: 'REWIND',
+  FAST_FORWARD: 'FORWARD',
   GUIDE: 'GUIDE',
   INFO: 'INFO',
   CHANNEL_UP: 'CH_UP',
   CHANNEL_DOWN: 'CH_DOWN',
+  CHANNEL_PREV: 'CH_PREV',
+  INPUT_CYCLE: 'INPUT',
+  CLOSED_CAPTION: 'CC',
 }; 

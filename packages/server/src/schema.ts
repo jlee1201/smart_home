@@ -50,6 +50,12 @@ export const typeDefs = `#graphql
     details: String
   }
 
+  type ButtonDebugInfo {
+    key: String!
+    codeset: String!
+    code: String!
+  }
+
   type Mutation {
     updateInput(value: String!): String
     sendTVCommand(command: String!, value: String): Boolean
@@ -66,5 +72,6 @@ export const typeDefs = `#graphql
     tvStatusChanged: TVStatus
     denonAvrStatusChanged: DenonAVRStatus
     errorLogChanged: [ErrorLog]
+    buttonDebugInfo: ButtonDebugInfo
   }
 `;

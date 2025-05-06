@@ -6,6 +6,17 @@ import { Link } from 'react-router-dom';
 // HMR test comment - this should update without a full page reload
 console.log('VizioRemotePage updated - HMR test', new Date().toISOString());
 
+// Define a GQL subscription to listen for button press information
+const BUTTON_DEBUG_SUBSCRIPTION = gql`
+  subscription OnButtonDebugInfo {
+    buttonDebugInfo {
+      key
+      codeset
+      code
+    }
+  }
+`;
+
 const TV_STATUS_QUERY = gql`
   query GetTVStatus {
     tvStatus {
@@ -71,6 +82,19 @@ export function VizioRemotePage() {
   const [isMuted, setIsMuted] = useState(false);
   const [isPoweredOn, setIsPoweredOn] = useState(false);
   const [currentInput, setCurrentInput] = useState('HDMI_1');
+  
+  // Subscribe to button debug information
+  useSubscription(BUTTON_DEBUG_SUBSCRIPTION, {
+    onData: ({ data }) => {
+      if (data.data?.buttonDebugInfo) {
+        const { key, codeset, code } = data.data.buttonDebugInfo;
+        console.log(`Button Debug: key=${key}, codeset=${codeset}, code=${code}`);
+      }
+    },
+    onError: (error) => {
+      console.error('Button debug subscription error:', error);
+    }
+  });
   
   // Query initial TV status
   const { loading: queryLoading, data: queryData, error: queryError, refetch: refetchStatus } = useQuery<{ 

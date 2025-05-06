@@ -2,9 +2,7 @@ import { GraphQLError } from 'graphql';
 import { PubSub } from 'graphql-subscriptions';
 import { logger } from './utils/logger.js';
 import { tvService } from './services/tvService.js';
-import type { TVStatus } from './services/tvService.js';
 import { denonAvrService } from './services/denonAvrService.js';
-import type { DenonAVRStatus } from './services/denonAvrService.js';
 
 // Create an enum for error codes
 export enum ErrorCode {
@@ -13,96 +11,22 @@ export enum ErrorCode {
   INTERNAL_ERROR = 'INTERNAL_ERROR',
 }
 
-// Add proper type definitions with more specific types
-type ResolverContext = {
-  pubsub: PubSub;
-};
+// Constants for the subscription channels
+export const INPUT_CHANGED_CHANNEL = 'INPUT_CHANGED';
+export const TV_STATUS_CHANNEL = 'TV_STATUS_CHANGED';
+export const DENON_AVR_STATUS_CHANNEL = 'DENON_AVR_STATUS_CHANGED';
+export const ERROR_LOG_CHANNEL = 'ERROR_LOG_CHANGED';
+export const BUTTON_DEBUG_CHANNEL = 'BUTTON_DEBUG';
 
-type ResolverParent = unknown;
-type ResolverArgs<T> = { value: T };
+// Types
+type ResolverContext = { pubsub: PubSub };
 type TVCommandArgs = { command: string; value?: string };
 type TVPairingArgs = { pin: string };
 type DenonAvrCommandArgs = { command: string; value?: string };
 
-type Resolvers = {
-  Query: {
-    hello: () => string;
-    currentInput: () => string;
-    tvStatus: () => TVStatus;
-    tvConnectionStatus: () => { connected: boolean };
-    denonAvrStatus: () => DenonAVRStatus;
-    denonAvrConnectionStatus: () => { connected: boolean };
-    errorLogs: () => { id: string; timestamp: number; message: string; details?: string }[];
-  };
-  Mutation: {
-    updateInput: (
-      parent: ResolverParent,
-      args: ResolverArgs<unknown>,
-      context: ResolverContext
-    ) => Promise<string>;
-    sendTVCommand: (
-      parent: ResolverParent,
-      args: TVCommandArgs,
-      context: ResolverContext
-    ) => Promise<boolean>;
-    sendDenonAvrCommand: (
-      parent: ResolverParent,
-      args: DenonAvrCommandArgs,
-      context: ResolverContext
-    ) => Promise<boolean>;
-    initiateTVPairing: () => Promise<{ challengeCode: string }>;
-    completeTVPairing: (
-      parent: ResolverParent,
-      args: TVPairingArgs
-    ) => Promise<{ success: boolean; authToken: string }>;
-    resetTVConnection: () => Promise<boolean>;
-    cancelTVPairing: () => Promise<boolean>;
-    clearErrorLogs: (
-      parent: ResolverParent,
-      args: never,
-      context: ResolverContext
-    ) => Promise<boolean>;
-  };
-  Subscription: {
-    inputChanged: {
-      subscribe: (
-        parent: ResolverParent,
-        args: never,
-        context: ResolverContext
-      ) => AsyncIterator<{ inputChanged: string }>;
-    };
-    tvStatusChanged: {
-      subscribe: (
-        parent: ResolverParent,
-        args: never,
-        context: ResolverContext
-      ) => AsyncIterator<{ tvStatusChanged: TVStatus }>;
-    };
-    denonAvrStatusChanged: {
-      subscribe: (
-        parent: ResolverParent,
-        args: never,
-        context: ResolverContext
-      ) => AsyncIterator<{ denonAvrStatusChanged: DenonAVRStatus }>;
-    };
-    errorLogChanged: {
-      subscribe: (
-        parent: ResolverParent,
-        args: never,
-        context: ResolverContext
-      ) => AsyncIterator<{ errorLogChanged: { id: string; timestamp: number; message: string; details?: string }[] }>;
-    };
-  };
-};
-
-// Constants
+// Maximum input length
 const MAX_INPUT_LENGTH = 1000;
-const INPUT_CHANNEL = 'INPUT_CHANGED' as const;
-const TV_STATUS_CHANNEL = 'TV_STATUS_CHANGED' as const;
-const DENON_AVR_STATUS_CHANNEL = 'DENON_AVR_STATUS_CHANGED' as const;
-const ERROR_LOG_CHANNEL = 'ERROR_LOG_CHANGED' as const;
 
-let currentInput = '';
 // Create an array to store recent errors
 const errorLogs: { id: string; timestamp: number; message: string; details?: string }[] = [];
 const MAX_ERROR_LOGS = 50; // Maximum number of errors to keep
@@ -151,6 +75,87 @@ export const addErrorToLog = async (pubsub: PubSub, message: string, details?: s
   }
 })();
 
+// Define the Resolvers type
+type Resolvers = {
+  Query: {
+    hello: () => string;
+    currentInput: () => string;
+    tvStatus: () => any;
+    tvConnectionStatus: () => { connected: boolean };
+    denonAvrStatus: () => any;
+    denonAvrConnectionStatus: () => { connected: boolean };
+    errorLogs: () => { id: string; timestamp: number; message: string; details?: string }[];
+  };
+  Mutation: {
+    updateInput: (
+      parent: any,
+      args: { value: string },
+      context: ResolverContext
+    ) => Promise<string>;
+    sendTVCommand: (
+      parent: any,
+      args: TVCommandArgs,
+      context: ResolverContext
+    ) => Promise<boolean>;
+    sendDenonAvrCommand: (
+      parent: any,
+      args: DenonAvrCommandArgs,
+      context: ResolverContext
+    ) => Promise<boolean>;
+    initiateTVPairing: () => Promise<{ challengeCode: string }>;
+    completeTVPairing: (
+      parent: any,
+      args: TVPairingArgs
+    ) => Promise<{ success: boolean; authToken: string }>;
+    resetTVConnection: () => Promise<boolean>;
+    cancelTVPairing: () => Promise<boolean>;
+    clearErrorLogs: (
+      parent: any,
+      args: any,
+      context: ResolverContext
+    ) => Promise<boolean>;
+  };
+  Subscription: {
+    inputChanged: {
+      subscribe: (
+        parent: any,
+        args: any,
+        context: ResolverContext
+      ) => any;
+    };
+    tvStatusChanged: {
+      subscribe: (
+        parent: any,
+        args: any,
+        context: ResolverContext
+      ) => any;
+    };
+    denonAvrStatusChanged: {
+      subscribe: (
+        parent: any,
+        args: any,
+        context: ResolverContext
+      ) => any;
+    };
+    errorLogChanged: {
+      subscribe: (
+        parent: any,
+        args: any,
+        context: ResolverContext
+      ) => any;
+    };
+    buttonDebugInfo: {
+      subscribe: (
+        parent: any,
+        args: any,
+        context: ResolverContext
+      ) => any;
+    };
+  };
+};
+
+let currentInput = '';
+
 export const resolvers: Resolvers = {
   Query: {
     hello: () => 'Hello from GraphQL!',
@@ -185,7 +190,7 @@ export const resolvers: Resolvers = {
         }
 
         currentInput = value;
-        await pubsub.publish(INPUT_CHANNEL, { inputChanged: value });
+        await pubsub.publish(INPUT_CHANGED_CHANNEL, { inputChanged: value });
         return value;
       } catch (error) {
         logger.error('Error in updateInput mutation', { error });
@@ -367,11 +372,11 @@ export const resolvers: Resolvers = {
     inputChanged: {
       subscribe: (_, __, { pubsub }) => {
         try {
-          return pubsub.asyncIterator([INPUT_CHANNEL]);
+          return pubsub.asyncIterator([INPUT_CHANGED_CHANNEL]);
         } catch (error) {
           logger.error('Error in inputChanged subscription', { error });
-          throw new GraphQLError('Subscription failed', {
-            extensions: { code: ErrorCode.SUBSCRIPTION_FAILED },
+          throw new GraphQLError('Subscription error', {
+            extensions: { code: ErrorCode.INTERNAL_ERROR },
           });
         }
       },
@@ -382,8 +387,8 @@ export const resolvers: Resolvers = {
           return pubsub.asyncIterator([TV_STATUS_CHANNEL]);
         } catch (error) {
           logger.error('Error in tvStatusChanged subscription', { error });
-          throw new GraphQLError('Subscription failed', {
-            extensions: { code: ErrorCode.SUBSCRIPTION_FAILED },
+          throw new GraphQLError('Subscription error', {
+            extensions: { code: ErrorCode.INTERNAL_ERROR },
           });
         }
       },
@@ -394,8 +399,8 @@ export const resolvers: Resolvers = {
           return pubsub.asyncIterator([DENON_AVR_STATUS_CHANNEL]);
         } catch (error) {
           logger.error('Error in denonAvrStatusChanged subscription', { error });
-          throw new GraphQLError('Subscription failed', {
-            extensions: { code: ErrorCode.SUBSCRIPTION_FAILED },
+          throw new GraphQLError('Subscription error', {
+            extensions: { code: ErrorCode.INTERNAL_ERROR },
           });
         }
       },
@@ -406,8 +411,20 @@ export const resolvers: Resolvers = {
           return pubsub.asyncIterator([ERROR_LOG_CHANNEL]);
         } catch (error) {
           logger.error('Error in errorLogChanged subscription', { error });
-          throw new GraphQLError('Subscription failed', {
-            extensions: { code: ErrorCode.SUBSCRIPTION_FAILED },
+          throw new GraphQLError('Subscription error', {
+            extensions: { code: ErrorCode.INTERNAL_ERROR },
+          });
+        }
+      },
+    },
+    buttonDebugInfo: {
+      subscribe: (_, __, { pubsub }) => {
+        try {
+          return pubsub.asyncIterator([BUTTON_DEBUG_CHANNEL]);
+        } catch (error) {
+          logger.error('Error in buttonDebugInfo subscription', { error });
+          throw new GraphQLError('Subscription error', {
+            extensions: { code: ErrorCode.INTERNAL_ERROR },
           });
         }
       },
