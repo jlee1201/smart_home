@@ -267,224 +267,387 @@ export function VizioRemotePage() {
         </div>
       )}
       
-      <div className="grid grid-cols-1 gap-8 mt-6">
-        <Card title="Status" subtitle="Current TV status">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <strong>Power:</strong> {isPoweredOn ? 'On' : 'Off'}
+      <div className="flex justify-center mt-6">
+        <div className="relative w-full max-w-sm bg-slate-900 rounded-3xl px-6 pt-6 pb-10 shadow-xl">
+          {/* Vizio logo at top */}
+          <div className="text-center mb-4">
+            <div className="text-white font-bold text-2xl tracking-wider">VIZIO</div>
+          </div>
+          
+          {/* TV Status Display - Like a remote screen */}
+          <div className="bg-slate-300 rounded-lg p-3 mb-6 text-center shadow-inner">
+            <div className="font-bold text-lg mb-1">
+              {isPoweredOn ? 'TV ON' : 'TV OFF'}
             </div>
-            <div>
-              <strong>Input:</strong> {currentInput.replace('_', ' ')}
-            </div>
-            <div>
-              <strong>Volume:</strong> {volume}% {isMuted ? '(Muted)' : ''}
-            </div>
-            <div>
-              <strong>Channel:</strong> {channel || 'N/A'}
+            <div className="text-sm">
+              <div><strong>Input:</strong> {currentInput.replace('_', ' ')}</div>
+              <div><strong>Volume:</strong> {volume}% {isMuted ? '(Muted)' : ''}</div>
+              {channel && <div><strong>Channel:</strong> {channel}</div>}
             </div>
           </div>
-        </Card>
-        
-        <Card title="Power & Input" subtitle="Control power and input source">
-          <div className="flex flex-wrap gap-4">
+          
+          {/* Power & Input Row */}
+          <div className="flex justify-between mb-6">
             <Button 
-              variant={isPoweredOn ? "secondary" : "primary"}
+              className="w-14 h-14 rounded-full bg-red-600 hover:bg-red-700 text-white font-bold shadow-md"
               onClick={() => handleCommand('POWER')}
               disabled={loading}
             >
-              {isPoweredOn ? 'Turn Off' : 'Turn On'}
+              {isPoweredOn ? 'OFF' : 'ON'}
             </Button>
             
             <Button 
-              onClick={() => handleCommand('INPUT_HDMI_1')} 
+              className="px-4 py-2 h-10 rounded-lg bg-slate-700 hover:bg-slate-600 text-white shadow-md self-center"
+              onClick={() => {
+                // Toggle through inputs
+                if (currentInput === 'HDMI_1') handleCommand('INPUT_HDMI_2');
+                else if (currentInput === 'HDMI_2') handleCommand('INPUT_TV');
+                else handleCommand('INPUT_HDMI_1');
+              }}
               disabled={loading || !isPoweredOn}
-              variant={currentInput === 'HDMI_1' ? 'primary' : 'secondary'}
             >
-              HDMI 1
+              Input
             </Button>
             
             <Button 
-              onClick={() => handleCommand('INPUT_HDMI_2')} 
-              disabled={loading || !isPoweredOn}
-              variant={currentInput === 'HDMI_2' ? 'primary' : 'secondary'}
-            >
-              HDMI 2
-            </Button>
-            
-            <Button 
-              onClick={() => handleCommand('INPUT_TV')} 
-              disabled={loading || !isPoweredOn}
-              variant={currentInput === 'TV' ? 'primary' : 'secondary'}
-            >
-              TV
-            </Button>
-          </div>
-        </Card>
-        
-        <Card title="Volume Control" subtitle="Adjust volume and mute">
-          <div className="mb-4">
-            <div className="flex items-center mb-2">
-              <span>Volume: {volume}%</span>
-              {isMuted && <span className="ml-2 text-red-500">(Muted)</span>}
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-2.5">
-              <div className="bg-blue-600 h-2.5 rounded-full" style={{ width: `${volume}%` }}></div>
-            </div>
-          </div>
-          
-          <div className="flex flex-wrap gap-4">
-            <Button onClick={() => handleCommand('VOLUME_UP')} disabled={loading || !isPoweredOn}>
-              Volume +
-            </Button>
-            
-            <Button onClick={() => handleCommand('VOLUME_DOWN')} disabled={loading || !isPoweredOn}>
-              Volume -
-            </Button>
-            
-            <Button 
-              variant={isMuted ? "primary" : "secondary"}
+              className="w-14 h-14 rounded-full bg-slate-700 hover:bg-slate-600 text-white shadow-md"
               onClick={() => handleCommand('MUTE')}
               disabled={loading || !isPoweredOn}
             >
-              {isMuted ? 'Unmute' : 'Mute'}
+              {isMuted ? 'UN-MUTE' : 'MUTE'}
             </Button>
-          </div>
-        </Card>
-        
-        <Card title="Channel Control" subtitle="Navigation and channel selection">
-          <div className="grid grid-cols-3 gap-4 mb-6">
-            <Button onClick={() => handleCommand('UP')} disabled={loading || !isPoweredOn}>
-              ▲
-            </Button>
-            <div></div>
-            <div></div>
-            
-            <Button onClick={() => handleCommand('LEFT')} disabled={loading || !isPoweredOn}>
-              ◀
-            </Button>
-            <Button onClick={() => handleCommand('OK')} disabled={loading || !isPoweredOn}>
-              OK
-            </Button>
-            <Button onClick={() => handleCommand('RIGHT')} disabled={loading || !isPoweredOn}>
-              ▶
-            </Button>
-            
-            <div></div>
-            <Button onClick={() => handleCommand('DOWN')} disabled={loading || !isPoweredOn}>
-              ▼
-            </Button>
-            <div></div>
           </div>
           
-          <div className="flex flex-wrap gap-4 mb-4">
-            <Button onClick={() => handleCommand('CHANNEL_UP')} disabled={loading || !isPoweredOn}>
-              Channel +
+          {/* Volume and Channel Controls */}
+          <div className="flex justify-between mb-6">
+            {/* Volume Controls */}
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateRows: 'auto auto auto',
+              gap: '12px',
+              justifyItems: 'center'
+            }}>
+              <Button 
+                className="w-12 h-12 rounded-full bg-slate-600 hover:bg-slate-700 text-white shadow-md text-xl"
+                onClick={() => handleCommand('VOLUME_UP')} 
+                disabled={loading || !isPoweredOn}
+                style={{ width: '48px', height: '48px' }}
+              >
+                +
+              </Button>
+              <span className="text-white text-xs">VOL</span>
+              <Button 
+                className="w-12 h-12 rounded-full bg-slate-600 hover:bg-slate-700 text-white shadow-md text-xl"
+                onClick={() => handleCommand('VOLUME_DOWN')} 
+                disabled={loading || !isPoweredOn}
+                style={{ width: '48px', height: '48px' }}
+              >
+                -
+              </Button>
+            </div>
+            
+            {/* Navigation D-Pad */}
+            <div style={{ 
+              display: 'grid',
+              gridTemplateAreas: `
+                ".       up      ."
+                "left    ok      right"
+                ".       down    ."
+              `,
+              gridTemplateColumns: '1fr auto 1fr',
+              gridTemplateRows: 'auto auto auto',
+              gap: '12px', 
+              justifyItems: 'center',
+              alignItems: 'center'
+            }}>
+              {/* Up button */}
+              <Button 
+                className="w-12 h-12 rounded-full bg-slate-600 hover:bg-slate-700 text-white shadow-md"
+                onClick={() => handleCommand('UP')} 
+                disabled={loading || !isPoweredOn}
+                style={{ gridArea: 'up' }}
+              >
+                ▲
+              </Button>
+              
+              {/* Left button */}
+              <Button 
+                className="w-12 h-12 rounded-full bg-slate-600 hover:bg-slate-700 text-white shadow-md"
+                onClick={() => handleCommand('LEFT')} 
+                disabled={loading || !isPoweredOn}
+                style={{ gridArea: 'left' }}
+              >
+                ◀
+              </Button>
+              
+              {/* OK button */}
+              <Button 
+                className="w-14 h-14 rounded-full bg-slate-500 hover:bg-slate-600 text-white font-bold text-lg shadow-md"
+                onClick={() => handleCommand('OK')} 
+                disabled={loading || !isPoweredOn}
+                style={{ gridArea: 'ok', width: '56px', height: '56px' }}
+              >
+                OK
+              </Button>
+              
+              {/* Right button */}
+              <Button 
+                className="w-12 h-12 rounded-full bg-slate-600 hover:bg-slate-700 text-white shadow-md"
+                onClick={() => handleCommand('RIGHT')} 
+                disabled={loading || !isPoweredOn}
+                style={{ gridArea: 'right' }}
+              >
+                ▶
+              </Button>
+              
+              {/* Down button */}
+              <Button 
+                className="w-12 h-12 rounded-full bg-slate-600 hover:bg-slate-700 text-white shadow-md"
+                onClick={() => handleCommand('DOWN')} 
+                disabled={loading || !isPoweredOn}
+                style={{ gridArea: 'down' }}
+              >
+                ▼
+              </Button>
+            </div>
+            
+            {/* Channel Controls */}
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateRows: 'auto auto auto',
+              gap: '12px',
+              justifyItems: 'center'
+            }}>
+              <Button 
+                className="w-12 h-12 rounded-full bg-slate-600 hover:bg-slate-700 text-white shadow-md text-xl"
+                onClick={() => handleCommand('CHANNEL_UP')} 
+                disabled={loading || !isPoweredOn}
+                style={{ width: '48px', height: '48px' }}
+              >
+                +
+              </Button>
+              <span className="text-white text-xs">CH</span>
+              <Button 
+                className="w-12 h-12 rounded-full bg-slate-600 hover:bg-slate-700 text-white shadow-md text-xl"
+                onClick={() => handleCommand('CHANNEL_DOWN')} 
+                disabled={loading || !isPoweredOn}
+                style={{ width: '48px', height: '48px' }}
+              >
+                -
+              </Button>
+            </div>
+          </div>
+          
+          {/* Menu Controls Row */}
+          <div className="flex justify-between mb-6">
+            <Button 
+              className="px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-sm shadow-md" 
+              onClick={() => handleCommand('BACK')} 
+              disabled={loading || !isPoweredOn}
+            >
+              Back
             </Button>
             
-            <Button onClick={() => handleCommand('CHANNEL_DOWN')} disabled={loading || !isPoweredOn}>
-              Channel -
+            <Button 
+              className="px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-sm shadow-md" 
+              onClick={() => handleCommand('HOME')} 
+              disabled={loading || !isPoweredOn}
+            >
+              Home
             </Button>
             
-            <Button onClick={() => handleCommand('GUIDE')} disabled={loading || !isPoweredOn}>
-              Guide
+            <Button 
+              className="px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-sm shadow-md" 
+              onClick={() => handleCommand('MENU')} 
+              disabled={loading || !isPoweredOn}
+            >
+              Menu
             </Button>
             
-            <Button onClick={() => handleCommand('INFO')} disabled={loading || !isPoweredOn}>
+            <Button 
+              className="px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-sm shadow-md" 
+              onClick={() => handleCommand('INFO')} 
+              disabled={loading || !isPoweredOn}
+            >
               Info
             </Button>
           </div>
           
-          <div className="flex items-end gap-2">
-            <div className="flex-grow">
-              <Input
-                value={channel}
-                onChange={(e) => setChannel(e.target.value)}
-                placeholder="Enter channel number"
-                disabled={!isPoweredOn}
-              />
+          {/* Number Pad - in a traditional 3x4 grid */}
+          <div className="mb-6">
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', maxWidth: '20rem', margin: '0 auto' }}>
+              {/* Row 1: 1, 2, 3 */}
+              <Button
+                className="h-14 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-lg shadow-md"
+                onClick={() => handleCommand('NUMBER', '1')}
+                disabled={loading || !isPoweredOn}
+              >
+                1
+              </Button>
+              <Button
+                className="h-14 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-lg shadow-md"
+                onClick={() => handleCommand('NUMBER', '2')}
+                disabled={loading || !isPoweredOn}
+              >
+                2
+              </Button>
+              <Button
+                className="h-14 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-lg shadow-md"
+                onClick={() => handleCommand('NUMBER', '3')}
+                disabled={loading || !isPoweredOn}
+              >
+                3
+              </Button>
+              
+              {/* Row 2: 4, 5, 6 */}
+              <Button
+                className="h-14 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-lg shadow-md"
+                onClick={() => handleCommand('NUMBER', '4')}
+                disabled={loading || !isPoweredOn}
+              >
+                4
+              </Button>
+              <Button
+                className="h-14 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-lg shadow-md"
+                onClick={() => handleCommand('NUMBER', '5')}
+                disabled={loading || !isPoweredOn}
+              >
+                5
+              </Button>
+              <Button
+                className="h-14 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-lg shadow-md"
+                onClick={() => handleCommand('NUMBER', '6')}
+                disabled={loading || !isPoweredOn}
+              >
+                6
+              </Button>
+              
+              {/* Row 3: 7, 8, 9 */}
+              <Button
+                className="h-14 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-lg shadow-md"
+                onClick={() => handleCommand('NUMBER', '7')}
+                disabled={loading || !isPoweredOn}
+              >
+                7
+              </Button>
+              <Button
+                className="h-14 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-lg shadow-md"
+                onClick={() => handleCommand('NUMBER', '8')}
+                disabled={loading || !isPoweredOn}
+              >
+                8
+              </Button>
+              <Button
+                className="h-14 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-lg shadow-md"
+                onClick={() => handleCommand('NUMBER', '9')}
+                disabled={loading || !isPoweredOn}
+              >
+                9
+              </Button>
+              
+              {/* Row 4: EXIT, 0, GUIDE */}
+              <Button
+                className="h-14 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-sm shadow-md"
+                onClick={() => handleCommand('EXIT')}
+                disabled={loading || !isPoweredOn}
+              >
+                Exit
+              </Button>
+              <Button
+                className="h-14 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-lg shadow-md"
+                onClick={() => handleCommand('NUMBER', '0')}
+                disabled={loading || !isPoweredOn}
+              >
+                0
+              </Button>
+              <Button
+                className="h-14 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-sm shadow-md"
+                onClick={() => handleCommand('GUIDE')}
+                disabled={loading || !isPoweredOn}
+              >
+                Guide
+              </Button>
             </div>
+          </div>
+          
+          {/* Playback Controls */}
+          <div className="flex justify-between mb-6">
             <Button 
-              onClick={() => handleCommand('CHANNEL', channel)}
-              disabled={loading || !channel || !isPoweredOn}
+              className="w-10 h-10 rounded-full bg-slate-700 hover:bg-slate-600 text-white shadow-md"
+              onClick={() => handleCommand('REWIND')} 
+              disabled={loading || !isPoweredOn}
             >
-              Go
+              ⏪
+            </Button>
+            
+            <Button 
+              className="w-10 h-10 rounded-full bg-slate-700 hover:bg-slate-600 text-white shadow-md"
+              onClick={() => handleCommand('PLAY')} 
+              disabled={loading || !isPoweredOn}
+            >
+              ▶
+            </Button>
+            
+            <Button 
+              className="w-10 h-10 rounded-full bg-slate-700 hover:bg-slate-600 text-white shadow-md"
+              onClick={() => handleCommand('PAUSE')} 
+              disabled={loading || !isPoweredOn}
+            >
+              ⏸
+            </Button>
+            
+            <Button 
+              className="w-10 h-10 rounded-full bg-slate-700 hover:bg-slate-600 text-white shadow-md"
+              onClick={() => handleCommand('STOP')} 
+              disabled={loading || !isPoweredOn}
+            >
+              ⏹
+            </Button>
+            
+            <Button 
+              className="w-10 h-10 rounded-full bg-slate-700 hover:bg-slate-600 text-white shadow-md"
+              onClick={() => handleCommand('FAST_FORWARD')} 
+              disabled={loading || !isPoweredOn}
+            >
+              ⏩
             </Button>
           </div>
-        </Card>
-        
-        <Card title="Playback Controls" subtitle="Media controls">
-          <div className="flex flex-wrap gap-4">
-            <Button onClick={() => handleCommand('PLAY')} disabled={loading || !isPoweredOn}>
-              ▶ Play
-            </Button>
-            
-            <Button onClick={() => handleCommand('PAUSE')} disabled={loading || !isPoweredOn}>
-              ⏸ Pause
-            </Button>
-            
-            <Button onClick={() => handleCommand('STOP')} disabled={loading || !isPoweredOn}>
-              ⏹ Stop
-            </Button>
-            
-            <Button onClick={() => handleCommand('REWIND')} disabled={loading || !isPoweredOn}>
-              ⏪ Rewind
-            </Button>
-            
-            <Button onClick={() => handleCommand('FAST_FORWARD')} disabled={loading || !isPoweredOn}>
-              ⏩ Forward
-            </Button>
-          </div>
-        </Card>
-        
-        <Card title="Smart Features" subtitle="Apps and smart TV features">
-          <div className="flex flex-wrap gap-4">
-            <Button onClick={() => handleCommand('HOME')} disabled={loading || !isPoweredOn}>
-              Home
-            </Button>
-            
-            <Button onClick={() => handleCommand('MENU')} disabled={loading || !isPoweredOn}>
-              Menu
-            </Button>
-            
-            <Button onClick={() => handleCommand('BACK')} disabled={loading || !isPoweredOn}>
-              Back
-            </Button>
-            
-            <Button onClick={() => handleCommand('EXIT')} disabled={loading || !isPoweredOn}>
-              Exit
-            </Button>
-            
-            <Button onClick={() => handleCommand('APP_NETFLIX')} disabled={loading || !isPoweredOn}>
+          
+          {/* Smart TV App Shortcuts */}
+          <div className="grid grid-cols-2 gap-3">
+            <Button 
+              className="px-3 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm shadow-md"
+              onClick={() => handleCommand('APP_NETFLIX')} 
+              disabled={loading || !isPoweredOn}
+            >
               Netflix
             </Button>
             
-            <Button onClick={() => handleCommand('APP_YOUTUBE')} disabled={loading || !isPoweredOn}>
+            <Button 
+              className="px-3 py-2 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-sm shadow-md"
+              onClick={() => handleCommand('APP_PRIME')} 
+              disabled={loading || !isPoweredOn}
+            >
+              Prime
+            </Button>
+            
+            <Button 
+              className="px-3 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white text-sm shadow-md"
+              onClick={() => handleCommand('APP_YOUTUBE')} 
+              disabled={loading || !isPoweredOn}
+            >
               YouTube
             </Button>
             
-            <Button onClick={() => handleCommand('APP_PRIME')} disabled={loading || !isPoweredOn}>
-              Prime Video
-            </Button>
-            
-            <Button onClick={() => handleCommand('APP_DISNEY')} disabled={loading || !isPoweredOn}>
+            <Button 
+              className="px-3 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-sm shadow-md"
+              onClick={() => handleCommand('APP_DISNEY')} 
+              disabled={loading || !isPoweredOn}
+            >
               Disney+
             </Button>
           </div>
-        </Card>
-        
-        <Card title="Number Pad" subtitle="Direct channel input">
-          <div className="grid grid-cols-3 gap-4">
-            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 0].map((num) => (
-              <Button 
-                key={num} 
-                onClick={() => handleCommand('NUMBER', num.toString())}
-                disabled={loading || !isPoweredOn}
-              >
-                {num}
-              </Button>
-            ))}
-          </div>
-        </Card>
+        </div>
       </div>
     </div>
   );
