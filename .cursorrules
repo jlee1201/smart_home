@@ -1,0 +1,19 @@
+{
+  "rules": [
+    {
+      "name": "Auto-update README",
+      "description": "Automatically update README.md when significant changes to tech stack, frameworks, or application architecture are detected.",
+      "pattern": "\\.(js|jsx|ts|tsx|json|prisma)$",
+      "prompt": "I noticed changes to tech stack, frameworks, or application architecture. I will now automatically update the corresponding sections in README.md to ensure it contains accurate information about the project. Please analyze the changes made and update the README.md accordingly with all relevant information about the updated tech stack, frameworks, or architecture.",
+      "agent": {
+        "action": "update_readme",
+        "auto": true
+      }
+    }
+  ],
+  "settings": {
+    "autoPrimingEnabled": true,
+    "promptOnSave": true,
+    "autoAgentEnabled": true
+  }
+} 
