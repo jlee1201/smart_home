@@ -89,6 +89,11 @@ VIZIO_DEVICE_NAME="Smart Home Remote"
 - **Database**: PostgreSQL
 - **ORM**: Prisma
 - **Containerization**: Docker & Docker Compose
+- **TV Control**: Custom implementation of the Vizio SmartCast API
+
+### Third-Party Resources
+- **Vizio SmartCast API Documentation**: This project's TV control functionality is based on the [Vizio SmartCast API documentation](https://github.com/exiva/Vizio_SmartCast_API).
+- **vizio-smart-cast Library**: Implementation references from [heathbar/vizio-smart-cast](https://github.com/heathbar/vizio-smart-cast) JavaScript library.
 
 ### Development Tools
 - **Language**: TypeScript

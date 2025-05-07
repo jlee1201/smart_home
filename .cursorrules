@@ -9,6 +9,16 @@
         "action": "update_readme",
         "auto": true
       }
+    },
+    {
+      "name": "Vizio API Codeset Verification",
+      "description": "Verify Vizio TV remote control codesets and codes when changes are made to the vizioApi implementation.",
+      "pattern": "vizioApi\\.ts$",
+      "prompt": "I noticed changes to the Vizio API implementation. Please ensure that any updates to key codesets and codes match the official Vizio SmartCast API documentation. Reference these resources for verification:\n\n1. Official Vizio SmartCast API documentation: https://github.com/exiva/Vizio_SmartCast_API\n2. vizio-smart-cast implementation: https://github.com/heathbar/vizio-smart-cast\n\nVerify that the codeset and code values are correct, and update the implementation if necessary. If the changes look good, update any relevant documentation.",
+      "agent": {
+        "action": "verify_codesets",
+        "auto": true
+      }
     }
   ],
   "settings": {
