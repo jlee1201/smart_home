@@ -1,16 +1,24 @@
 # Smart Home - Vizio TV Control
 
-This project provides a web-based remote control for Vizio SmartCast TVs, with features including:
+A web-based remote control application for Vizio SmartCast TVs that provides complete control over your television from any device on your network.
 
-- Power control
-- Volume adjustment
-- Channel changing
-- Input selection
-- Media playback controls
-- Smart app launching
-- Navigation controls
+## Features
 
-## Setup
+- **TV Control**
+  - Power on/off
+  - Volume adjustment
+  - Channel navigation
+  - Input selection
+  - Media playback controls (play, pause, stop, etc.)
+  - Smart app launching
+  - Directional navigation
+
+- **Real-time Updates**: TV status changes are reflected immediately in the interface
+- **Smart Home Integration**: Designed to be part of a larger smart home system
+- **Responsive Design**: Works on desktop and mobile devices
+- **Persistent Configuration**: TV settings and auth tokens are stored in a database
+
+## Getting Started
 
 ### Prerequisites
 
@@ -29,7 +37,7 @@ This project provides a web-based remote control for Vizio SmartCast TVs, with f
 
 ### Vizio TV Configuration
 
-To connect to your Vizio TV, you need to create a `.env` file in the repository root directory with the following settings:
+To connect to your Vizio TV, create a `.env` file in the repository root with:
 
 ```
 # Server configuration
@@ -40,9 +48,9 @@ DATABASE_URL=postgresql://postgres:postgres@localhost:5432/smart_home
 
 # Vizio TV configuration
 ENABLE_TV_CONNECTION=true
-VIZIO_TV_IP=192.168.1.100  # Replace with your Vizio TV's IP address
+VIZIO_TV_IP=192.168.1.100  # Replace with your TV's IP address
 VIZIO_TV_PORT=7345         # Default Vizio SmartCast API port
-VIZIO_AUTH_TOKEN=          # Will be filled after pairing with TV
+VIZIO_AUTH_TOKEN=          # Will be filled after pairing
 VIZIO_DEVICE_NAME="Smart Home Remote"
 ```
 
@@ -57,43 +65,78 @@ VIZIO_DEVICE_NAME="Smart Home Remote"
    ```
    yarn dev
    ```
-   
-   This will:
-   - Start a PostgreSQL database using Docker
-   - Run database migrations
-   - Start the server and client applications
 
-2. Open the application in your browser at `http://localhost:3000`
+2. Access the application at `http://localhost:3000`
 
-3. Navigate to the "TV Setup" page to pair with your TV
+3. Navigate to "TV Setup" to pair with your TV
 
-4. Follow the on-screen instructions to complete the pairing process
-   (The auth token will be automatically stored in the database)
+4. Follow the on-screen instructions to complete pairing
 
-5. Once paired, use the "TV Remote" page to control your TV
+## Tech Stack
+
+### Frontend
+- **Framework**: React 18 with TypeScript
+- **Routing**: React Router v6
+- **API Client**: Apollo Client
+- **UI**: Custom components with React Icons
+- **Build Tool**: Vite
+
+### Backend
+- **Runtime**: Node.js
+- **Framework**: Express
+- **API**: GraphQL with Apollo Server
+- **Subscriptions**: GraphQL Subscriptions for real-time updates
+- **Database**: PostgreSQL
+- **ORM**: Prisma
+- **Containerization**: Docker & Docker Compose
+
+### Development Tools
+- **Language**: TypeScript
+- **Testing**: Jest
+- **Linting**: ESLint
+- **Formatting**: Prettier
+
+## Application Architecture
+
+### Client-Server Structure
+The application follows a monorepo structure with two main packages:
+- `packages/client`: React frontend application
+- `packages/server`: Node.js backend server
+
+### Data Flow
+1. **User Interface**: React components in the client package
+2. **API Layer**: GraphQL queries/mutations/subscriptions communicate with the server
+3. **Business Logic**: Server processes requests and communicates with the TV
+4. **Data Persistence**: PostgreSQL database stores TV settings and authentication tokens
+
+### Key Components
+- **Apollo GraphQL Server**: Handles API requests and real-time subscriptions
+- **Vizio API Service**: Communicates with the Vizio SmartCast API
+- **Prisma ORM**: Manages database operations and schema
+- **React Router**: Handles client-side routing
+- **Apollo Client**: Manages GraphQL state and caching on the frontend
+
+### Database Model
+The application uses a PostgreSQL database with the following schema:
+- `TVSettings`: Stores TV configuration including IP address, authentication tokens, and device information
+
+## Development
+
+### Available Scripts
+
+- `yarn dev`: Start development environment (server + client)
+- `yarn build`: Build production-ready application
+- `yarn test`: Run tests
+- `yarn lint`: Run ESLint
+- `yarn format`: Format code with Prettier
+- `yarn prisma:studio`: Open Prisma Studio to manage database
+- `yarn prisma:migrate`: Run database migrations
 
 ### Database Management
 
-- To view the database with a UI tool: `yarn prisma:studio`
-- To update the database schema: Edit `packages/server/prisma/schema.prisma` and run `yarn prisma:migrate`
-
-## Features
-
-- **Real-time Updates**: TV status changes (power, volume, input, etc.) are reflected immediately in the interface
-- **Smart Home Integration**: Designed to be part of a larger smart home system
-- **Responsive Design**: Works on desktop and mobile devices
-- **Persistent Configuration**: TV settings and auth tokens are stored in a database
-
-## Technical Details
-
-This application uses:
-
-- React with TypeScript for the frontend
-- GraphQL for API communication
-- Apollo for GraphQL client/server implementation
-- Vizio SmartCast API for TV control
-- PostgreSQL database with Prisma ORM
-- Docker for containerization
+- Edit `packages/server/prisma/schema.prisma` to update the database schema
+- Run `yarn prisma:migrate` to apply schema changes
+- Use `yarn prisma:studio` to view and edit database records
 
 ## Troubleshooting
 
