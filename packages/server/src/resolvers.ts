@@ -66,10 +66,26 @@ export const addErrorToLog = async (pubsub: PubSub, message: string, details?: s
     logger.warn('Failed to initialize TV service', { error });
   }
   
-  // Initialize Denon AVR service
+  // Initialize Denon AVR service with detailed logging
   try {
-    await denonAvrService.init();
-    logger.info('Denon AVR service initialized');
+    logger.info('Initializing Denon AVR service...');
+    logger.info('Environment settings', { 
+      ENABLE_AVR_CONNECTION: process.env.ENABLE_AVR_CONNECTION,
+      simulationMode: process.env.ENABLE_AVR_CONNECTION !== 'true',
+      DENON_AVR_IP: process.env.DENON_AVR_IP,
+      DENON_AVR_PORT: process.env.DENON_AVR_PORT
+    });
+    
+    const initResult = await denonAvrService.init();
+    logger.info('Denon AVR service initialized', { 
+      success: initResult, 
+      isConnected: denonAvrService.isConnectedToAVR() 
+    });
+    
+    // Get initial status
+    const status = denonAvrService.getStatus();
+    logger.info('Initial Denon AVR status', { status });
+    
   } catch (error) {
     logger.warn('Failed to initialize Denon AVR service', { error });
   }

@@ -1,6 +1,14 @@
 import { useState, useEffect } from 'react';
 import { gql, useMutation, useQuery, useSubscription } from '@apollo/client';
 import { Button, Card, Input } from '@design-system';
+import { FaPowerOff, FaVolumeUp, FaVolumeDown, FaVolumeMute, FaVolumeOff, FaExchangeAlt, 
+         FaMusic, FaFilm, FaGamepad, FaCompactDisc, FaMicrophone, FaTv, FaSatelliteDish,
+         FaBluetooth, FaNetworkWired, FaArrowUp, FaArrowDown, FaArrowLeft, FaArrowRight,
+         FaCheckCircle, FaUndo, FaBars, FaHome, FaPlay, FaPause, FaStop, FaStepBackward, 
+         FaStepForward } from 'react-icons/fa';
+
+// HMR test comment - this should update without a full page reload
+console.log('DenonAvrRemotePage updated - HMR test', new Date().toISOString());
 
 const DENON_AVR_STATUS_QUERY = gql`
   query GetDenonAvrStatus {
@@ -35,6 +43,17 @@ const SEND_DENON_AVR_COMMAND = gql`
   }
 `;
 
+const ERROR_LOGS_SUBSCRIPTION = gql`
+  subscription OnErrorLogChanged {
+    errorLogChanged {
+      id
+      timestamp
+      message
+      details
+    }
+  }
+`;
+
 type DenonAVRStatus = {
   isPoweredOn: boolean;
   volume: number;
@@ -43,6 +62,39 @@ type DenonAVRStatus = {
   soundMode: string;
 };
 
+type ErrorLog = {
+  id: string;
+  timestamp: number;
+  message: string;
+  details?: string;
+};
+
+// X4500H specific inputs
+const AVR_X4500H_INPUTS = [
+  { id: 'CBL/SAT', name: 'Cable/Satellite', icon: <FaSatelliteDish /> },
+  { id: 'DVD', name: 'DVD', icon: <FaCompactDisc /> },
+  { id: 'BD', name: 'Blu-ray', icon: <FaCompactDisc /> },
+  { id: 'GAME', name: 'Game', icon: <FaGamepad /> },
+  { id: 'AUX1', name: 'Auxiliary', icon: <FaMicrophone /> },
+  { id: 'MPLAY', name: 'Media Player', icon: <FaNetworkWired /> },
+  { id: 'TV', name: 'TV Audio', icon: <FaTv /> },
+  { id: 'TUNER', name: 'Tuner', icon: <FaMusic /> },
+  { id: 'PHONO', name: 'Phono', icon: <FaCompactDisc /> },
+  { id: 'CD', name: 'CD', icon: <FaCompactDisc /> },
+  { id: 'BT', name: 'Bluetooth', icon: <FaBluetooth /> },
+  { id: 'NET', name: 'Network', icon: <FaNetworkWired /> },
+];
+
+// X4500H sound modes
+const AVR_X4500H_SOUND_MODES = [
+  { id: 'MOVIE', name: 'Movie', icon: <FaFilm /> },
+  { id: 'MUSIC', name: 'Music', icon: <FaMusic /> },
+  { id: 'GAME', name: 'Game', icon: <FaGamepad /> },
+  { id: 'DIRECT', name: 'Direct', icon: <FaVolumeUp /> },
+  { id: 'STEREO', name: 'Stereo', icon: <FaVolumeUp /> },
+  { id: 'AUTO', name: 'Auto', icon: <FaExchangeAlt /> },
+];
+
 export function DenonAvrRemotePage() {
   const [volume, setVolume] = useState(50);
   const [isMuted, setIsMuted] = useState(false);
@@ -50,9 +102,10 @@ export function DenonAvrRemotePage() {
   const [currentInput, setCurrentInput] = useState('CBL/SAT');
   const [soundMode, setSoundMode] = useState('STEREO');
   const [customVolume, setCustomVolume] = useState('');
+  const [errorMessage, setErrorMessage] = useState<string>('');
   
   // Query initial AVR status
-  const { loading: queryLoading, data: queryData } = useQuery<{ 
+  const { loading: queryLoading, data: queryData, error: queryError, refetch: refetchStatus } = useQuery<{ 
     denonAvrStatus: DenonAVRStatus; 
     denonAvrConnectionStatus: { connected: boolean } 
   }>(DENON_AVR_STATUS_QUERY, {
@@ -67,7 +120,11 @@ export function DenonAvrRemotePage() {
     },
     onError: (error) => {
       console.error('Error fetching Denon AVR status:', error);
-    }
+      setErrorMessage('Error communicating with Denon AVR-X4500H. Will attempt to reconnect...');
+    },
+    // Poll every 5 seconds to detect connection changes
+    pollInterval: 5000,
+    fetchPolicy: 'network-only' // Don't use cache for status updates
   });
   
   // Subscribe to AVR status changes
@@ -84,6 +141,29 @@ export function DenonAvrRemotePage() {
     },
     onError: (error) => {
       console.error('Subscription error:', error);
+      setErrorMessage('Lost connection to Denon AVR-X4500H. Attempting to reconnect...');
+    }
+  });
+  
+  // Subscribe to error logs
+  const { data: errorLogData } = useSubscription<{ errorLogChanged: ErrorLog[] }>(ERROR_LOGS_SUBSCRIPTION, {
+    onData: ({ data }) => {
+      if (data.data?.errorLogChanged && data.data.errorLogChanged.length > 0) {
+        // Get the most recent error
+        const latestError = data.data.errorLogChanged[0];
+        // Only show AVR related errors (filter by message content)
+        if (latestError.message.includes('AVR') || latestError.message.includes('Denon')) {
+          setErrorMessage(latestError.message);
+          
+          // Clear error message after 5 seconds
+          setTimeout(() => {
+            setErrorMessage('');
+          }, 5000);
+        }
+      }
+    },
+    onError: (error) => {
+      console.error('Error log subscription error:', error);
     }
   });
   
@@ -99,13 +179,43 @@ export function DenonAvrRemotePage() {
     }
   }, [subscriptionData]);
   
-  const [sendCommand, { loading: commandLoading }] = useMutation(SEND_DENON_AVR_COMMAND);
+  // Add effect to refetch status if there's an error
+  useEffect(() => {
+    if (queryError) {
+      setErrorMessage('Error communicating with Denon AVR-X4500H. Will attempt to reconnect...');
+      // Try to refetch after a delay
+      const refetchTimer = setTimeout(() => {
+        refetchStatus();
+      }, 5000);
+      
+      return () => clearTimeout(refetchTimer);
+    }
+  }, [queryError, refetchStatus]);
+  
+  const [sendCommand, { loading: commandLoading, error: commandError }] = useMutation(SEND_DENON_AVR_COMMAND, {
+    onError: (error) => {
+      console.error('Error sending command:', error);
+      setErrorMessage('Failed to send command to AVR-X4500H. The connection may have been lost.');
+      refetchStatus();
+    }
+  });
   
   const handleCommand = async (command: string, value?: string) => {
     try {
-      await sendCommand({ variables: { command, value } });
+      if (!commandError && !errorMessage.includes('Failed')) {
+        setErrorMessage(''); 
+      }
+      
+      const result = await sendCommand({ variables: { command, value } });
+      
+      // Check if the command failed (returned false)
+      if (result.data && result.data.sendDenonAvrCommand === false) {
+        setErrorMessage(`The command "${command}" failed. The AVR may be unresponsive.`);
+      }
     } catch (error) {
       console.error('Error sending command:', error);
+      setErrorMessage('Failed to send command to AVR-X4500H. The connection may have been lost.');
+      refetchStatus();
     }
   };
 
@@ -123,12 +233,12 @@ export function DenonAvrRemotePage() {
   if (!isAVRConnected) {
     return (
       <div>
-        <h2>Denon AVR Remote Control</h2>
+        <h2>Denon AVR-X4500H Remote Control</h2>
         
         <div className="grid grid-cols-1 gap-8 mt-6">
           <Card title="AVR Not Connected" subtitle="Connection required">
             <p className="mb-4">
-              Your Denon AVR is not connected. Please check your network connection and ensure the AVR is powered on.
+              Your Denon AVR-X4500H is not connected. Please check your network connection and ensure the AVR is powered on.
             </p>
             <Button 
               variant="primary"
@@ -144,278 +254,271 @@ export function DenonAvrRemotePage() {
   
   return (
     <div>
-      <h2>Denon AVR Remote Control</h2>
+      <h2>Denon AVR-X4500H Remote Control</h2>
       
-      <div className="grid grid-cols-1 gap-8 mt-6">
-        <Card title="Status" subtitle="Current AVR status">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <strong>Power:</strong> {isPoweredOn ? 'On' : 'Off'}
-            </div>
-            <div>
-              <strong>Input:</strong> {currentInput}
-            </div>
-            <div>
-              <strong>Volume:</strong> {volume}% {isMuted ? '(Muted)' : ''}
-            </div>
-            <div>
-              <strong>Sound Mode:</strong> {soundMode}
-            </div>
+      {errorMessage && (
+        <div className="mb-4 p-4 bg-red-100 text-red-700 rounded">
+          {errorMessage}
+        </div>
+      )}
+      
+      <div className="flex justify-center mt-6">
+        <div className="relative w-full max-w-md bg-slate-900 rounded-3xl px-6 pt-6 pb-10 shadow-xl">
+          {/* Denon logo at top */}
+          <div className="text-center mb-4">
+            <div className="text-white font-bold text-2xl tracking-wider">DENON</div>
+            <div className="text-gray-400 text-xs tracking-wide">AVR-X4500H</div>
           </div>
-        </Card>
-        
-        <Card title="Power Control" subtitle="Turn AVR on/off">
-          <div className="flex flex-wrap gap-4">
-            <Button 
-              variant="primary"
-              onClick={() => handleCommand('POWER_ON')}
-              disabled={loading || isPoweredOn}
-            >
-              Power On
-            </Button>
-            
-            <Button 
-              variant="danger"
-              onClick={() => handleCommand('POWER_OFF')}
-              disabled={loading || !isPoweredOn}
-            >
-              Power Off
-            </Button>
-          </div>
-        </Card>
-        
-        <Card title="Input Selection" subtitle="Select input source">
-          <div className="flex flex-wrap gap-4">
-            <Button 
-              onClick={() => handleCommand('INPUT_TV')} 
-              disabled={loading || !isPoweredOn}
-              variant={currentInput === 'TV' ? 'primary' : 'secondary'}
-            >
-              TV
-            </Button>
-            
-            <Button 
-              onClick={() => handleCommand('INPUT_BLURAY')} 
-              disabled={loading || !isPoweredOn}
-              variant={currentInput === 'BD' ? 'primary' : 'secondary'}
-            >
-              Blu-ray
-            </Button>
-            
-            <Button 
-              onClick={() => handleCommand('INPUT_GAME')} 
-              disabled={loading || !isPoweredOn}
-              variant={currentInput === 'GAME' ? 'primary' : 'secondary'}
-            >
-              Game
-            </Button>
-            
-            <Button 
-              onClick={() => handleCommand('INPUT_CBL_SAT')} 
-              disabled={loading || !isPoweredOn}
-              variant={currentInput === 'CBL/SAT' ? 'primary' : 'secondary'}
-            >
-              Cable/Sat
-            </Button>
-            
-            <Button 
-              onClick={() => handleCommand('INPUT_BLUETOOTH')} 
-              disabled={loading || !isPoweredOn}
-              variant={currentInput === 'BT' ? 'primary' : 'secondary'}
-            >
-              Bluetooth
-            </Button>
-          </div>
-        </Card>
-        
-        <Card title="Volume Control" subtitle="Adjust volume and mute">
-          <div className="mb-4">
-            <div className="flex items-center mb-2">
-              <span>Volume: {volume}%</span>
-              {isMuted && <span className="ml-2 text-red-500">(Muted)</span>}
+          
+          {/* AVR Status Display - Like a remote screen */}
+          <div className="bg-slate-300 rounded-lg p-3 mb-6 text-center shadow-inner">
+            <div className="font-bold text-lg mb-1">
+              {isPoweredOn ? 'AVR ON' : 'AVR OFF'}
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-2.5">
-              <div className="bg-blue-600 h-2.5 rounded-full" style={{ width: `${volume}%` }}></div>
+            <div className="text-sm">
+              <div><strong>Input:</strong> {currentInput}</div>
+              <div><strong>Volume:</strong> {volume}% {isMuted ? '(Muted)' : ''}</div>
+              <div><strong>Sound Mode:</strong> {soundMode}</div>
             </div>
           </div>
           
-          <div className="flex flex-wrap gap-4 mb-4">
-            <Button onClick={() => handleCommand('VOLUME_UP')} disabled={loading || !isPoweredOn}>
-              Volume +
-            </Button>
-            
-            <Button onClick={() => handleCommand('VOLUME_DOWN')} disabled={loading || !isPoweredOn}>
-              Volume -
+          {/* Power & Mute Row */}
+          <div className="flex justify-between mb-6">
+            <Button 
+              className={`w-14 h-14 rounded-full ${isPoweredOn ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'} text-white font-bold shadow-md flex items-center justify-center`}
+              onClick={() => handleCommand(isPoweredOn ? 'POWER_OFF' : 'POWER_ON')}
+              disabled={loading}
+              title={isPoweredOn ? 'Turn AVR Off' : 'Turn AVR On'}
+            >
+              <FaPowerOff />
             </Button>
             
             <Button 
-              variant={isMuted ? "primary" : "secondary"}
+              className="w-14 h-14 rounded-full bg-slate-700 hover:bg-slate-600 text-white shadow-md flex items-center justify-center"
               onClick={() => handleCommand('MUTE_TOGGLE')}
               disabled={loading || !isPoweredOn}
+              title={isMuted ? "Unmute Sound" : "Mute Sound"}
             >
-              {isMuted ? 'Unmute' : 'Mute'}
+              {isMuted ? <FaVolumeOff /> : <FaVolumeMute />}
             </Button>
           </div>
           
-          <div className="flex items-center gap-2 mt-4">
-            <Input
-              type="number"
-              min="0"
-              max="100"
-              value={customVolume}
-              onChange={(e) => setCustomVolume(e.target.value)}
-              placeholder="Set volume (0-100)"
-              disabled={loading || !isPoweredOn}
-              className="w-40"
-            />
-            <Button 
-              onClick={handleSetCustomVolume} 
-              disabled={loading || !isPoweredOn || !customVolume}
-            >
-              Set
-            </Button>
-          </div>
-        </Card>
-        
-        <Card title="Sound Mode" subtitle="Change sound processing mode">
-          <div className="flex flex-wrap gap-4">
-            <Button 
-              onClick={() => handleCommand('SOUND_MOVIE')} 
-              disabled={loading || !isPoweredOn}
-              variant={soundMode === 'MOVIE' ? 'primary' : 'secondary'}
-            >
-              Movie
-            </Button>
+          {/* Volume Control with Slider */}
+          <div className="mb-6">
+            <div className="text-white mb-2 font-medium">Volume Control</div>
+            <div className="flex items-center mb-2">
+              <span className="text-white text-sm mr-2">Volume: {volume}%</span>
+              {isMuted && <span className="ml-2 text-red-400 text-sm">(Muted)</span>}
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-2.5 mb-4">
+              <div className="bg-blue-600 h-2.5 rounded-full" style={{ width: `${volume}%` }}></div>
+            </div>
+            <div className="flex gap-2">
+              <Button 
+                className="flex-1 h-10 rounded-lg bg-slate-700 hover:bg-slate-600 text-white shadow-md flex items-center justify-center"
+                onClick={() => handleCommand('VOLUME_DOWN')}
+                disabled={loading || !isPoweredOn}
+              >
+                <FaVolumeDown />
+              </Button>
+              
+              <Button 
+                className="flex-1 h-10 rounded-lg bg-slate-700 hover:bg-slate-600 text-white shadow-md flex items-center justify-center"
+                onClick={() => handleCommand('VOLUME_UP')}
+                disabled={loading || !isPoweredOn}
+              >
+                <FaVolumeUp />
+              </Button>
+            </div>
             
-            <Button 
-              onClick={() => handleCommand('SOUND_MUSIC')} 
-              disabled={loading || !isPoweredOn}
-              variant={soundMode === 'MUSIC' ? 'primary' : 'secondary'}
-            >
-              Music
-            </Button>
-            
-            <Button 
-              onClick={() => handleCommand('SOUND_GAME')} 
-              disabled={loading || !isPoweredOn}
-              variant={soundMode === 'GAME' ? 'primary' : 'secondary'}
-            >
-              Game
-            </Button>
-            
-            <Button 
-              onClick={() => handleCommand('SOUND_DIRECT')} 
-              disabled={loading || !isPoweredOn}
-              variant={soundMode === 'DIRECT' ? 'primary' : 'secondary'}
-            >
-              Direct
-            </Button>
-            
-            <Button 
-              onClick={() => handleCommand('SOUND_STEREO')} 
-              disabled={loading || !isPoweredOn}
-              variant={soundMode === 'STEREO' ? 'primary' : 'secondary'}
-            >
-              Stereo
-            </Button>
-          </div>
-        </Card>
-        
-        <Card title="Navigation Controls" subtitle="Menu navigation">
-          <div className="grid grid-cols-3 gap-4 mb-6">
-            <div></div>
-            <Button 
-              onClick={() => handleCommand('NAVIGATE', 'UP')} 
-              disabled={loading || !isPoweredOn}
-            >
-              ▲
-            </Button>
-            <div></div>
-            
-            <Button 
-              onClick={() => handleCommand('NAVIGATE', 'LEFT')} 
-              disabled={loading || !isPoweredOn}
-            >
-              ◀
-            </Button>
-            <Button 
-              onClick={() => handleCommand('NAVIGATE', 'SELECT')} 
-              disabled={loading || !isPoweredOn}
-            >
-              OK
-            </Button>
-            <Button 
-              onClick={() => handleCommand('NAVIGATE', 'RIGHT')} 
-              disabled={loading || !isPoweredOn}
-            >
-              ▶
-            </Button>
-            
-            <div></div>
-            <Button 
-              onClick={() => handleCommand('NAVIGATE', 'DOWN')} 
-              disabled={loading || !isPoweredOn}
-            >
-              ▼
-            </Button>
-            <div></div>
+            <div className="flex items-center gap-2 mt-4">
+              <Input
+                type="number"
+                min="0"
+                max="100"
+                value={customVolume}
+                onChange={(e) => setCustomVolume(e.target.value)}
+                placeholder="Set volume (0-100)"
+                disabled={loading || !isPoweredOn}
+                className="flex-1"
+              />
+              <Button 
+                className="h-10 px-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow-md"
+                onClick={handleSetCustomVolume} 
+                disabled={loading || !isPoweredOn || !customVolume}
+              >
+                Set
+              </Button>
+            </div>
           </div>
           
-          <div className="flex flex-wrap gap-4">
-            <Button 
-              onClick={() => handleCommand('NAVIGATE', 'MENU')} 
-              disabled={loading || !isPoweredOn}
-            >
-              Menu
-            </Button>
-            
-            <Button 
-              onClick={() => handleCommand('NAVIGATE', 'RETURN')} 
-              disabled={loading || !isPoweredOn}
-            >
-              Return
-            </Button>
+          {/* Input Selection */}
+          <div className="mb-6">
+            <div className="text-white mb-2 font-medium">Input Selection</div>
+            <div className="grid grid-cols-3 gap-2">
+              {AVR_X4500H_INPUTS.map(input => (
+                <Button 
+                  key={input.id}
+                  className={`h-12 rounded-lg ${currentInput === input.id ? 'bg-blue-600 hover:bg-blue-700' : 'bg-slate-700 hover:bg-slate-600'} text-white shadow-md flex flex-col items-center justify-center text-xs`}
+                  onClick={() => handleCommand(`INPUT_${input.id.replace('/', '_')}`)}
+                  disabled={loading || !isPoweredOn}
+                  title={input.name}
+                >
+                  <span className="text-lg mb-1">{input.icon}</span>
+                  <span className="truncate">{input.name}</span>
+                </Button>
+              ))}
+            </div>
           </div>
-        </Card>
-        
-        <Card title="Playback Controls" subtitle="Media playback controls">
-          <div className="flex flex-wrap gap-4">
-            <Button 
-              onClick={() => handleCommand('PLAYBACK', 'PLAY')} 
-              disabled={loading || !isPoweredOn}
-            >
-              ▶ Play
-            </Button>
-            
-            <Button 
-              onClick={() => handleCommand('PLAYBACK', 'PAUSE')} 
-              disabled={loading || !isPoweredOn}
-            >
-              ⏸ Pause
-            </Button>
-            
-            <Button 
-              onClick={() => handleCommand('PLAYBACK', 'STOP')} 
-              disabled={loading || !isPoweredOn}
-            >
-              ⏹ Stop
-            </Button>
-            
-            <Button 
-              onClick={() => handleCommand('PLAYBACK', 'PREVIOUS')} 
-              disabled={loading || !isPoweredOn}
-            >
-              ⏮ Previous
-            </Button>
-            
-            <Button 
-              onClick={() => handleCommand('PLAYBACK', 'NEXT')} 
-              disabled={loading || !isPoweredOn}
-            >
-              ⏭ Next
-            </Button>
+          
+          {/* Sound Mode Selection */}
+          <div className="mb-6">
+            <div className="text-white mb-2 font-medium">Sound Mode</div>
+            <div className="grid grid-cols-3 gap-2">
+              {AVR_X4500H_SOUND_MODES.map(mode => (
+                <Button 
+                  key={mode.id}
+                  className={`h-12 rounded-lg ${soundMode === mode.id ? 'bg-blue-600 hover:bg-blue-700' : 'bg-slate-700 hover:bg-slate-600'} text-white shadow-md flex flex-col items-center justify-center text-xs`}
+                  onClick={() => handleCommand(`SOUND_${mode.id}`)}
+                  disabled={loading || !isPoweredOn}
+                  title={mode.name}
+                >
+                  <span className="text-lg mb-1">{mode.icon}</span>
+                  <span>{mode.name}</span>
+                </Button>
+              ))}
+            </div>
           </div>
-        </Card>
+          
+          {/* Navigation Controls */}
+          <div className="mb-6">
+            <div className="text-white mb-2 font-medium">Navigation Controls</div>
+            <div className="flex justify-center mb-2">
+              <div className="grid grid-cols-3 gap-2 w-4/5">
+                <div></div>
+                <Button 
+                  className="h-12 w-12 rounded-full bg-slate-700 hover:bg-slate-600 text-white shadow-md flex items-center justify-center mx-auto"
+                  onClick={() => handleCommand('NAVIGATE', 'UP')}
+                  disabled={loading || !isPoweredOn}
+                >
+                  <FaArrowUp />
+                </Button>
+                <div></div>
+                
+                <Button 
+                  className="h-12 w-12 rounded-full bg-slate-700 hover:bg-slate-600 text-white shadow-md flex items-center justify-center"
+                  onClick={() => handleCommand('NAVIGATE', 'LEFT')}
+                  disabled={loading || !isPoweredOn}
+                >
+                  <FaArrowLeft />
+                </Button>
+                
+                <Button 
+                  className="h-12 w-12 rounded-full bg-slate-600 hover:bg-slate-500 text-white shadow-md flex items-center justify-center"
+                  onClick={() => handleCommand('NAVIGATE', 'SELECT')}
+                  disabled={loading || !isPoweredOn}
+                >
+                  <FaCheckCircle />
+                </Button>
+                
+                <Button 
+                  className="h-12 w-12 rounded-full bg-slate-700 hover:bg-slate-600 text-white shadow-md flex items-center justify-center"
+                  onClick={() => handleCommand('NAVIGATE', 'RIGHT')}
+                  disabled={loading || !isPoweredOn}
+                >
+                  <FaArrowRight />
+                </Button>
+                
+                <div></div>
+                <Button 
+                  className="h-12 w-12 rounded-full bg-slate-700 hover:bg-slate-600 text-white shadow-md flex items-center justify-center mx-auto"
+                  onClick={() => handleCommand('NAVIGATE', 'DOWN')}
+                  disabled={loading || !isPoweredOn}
+                >
+                  <FaArrowDown />
+                </Button>
+                <div></div>
+              </div>
+            </div>
+            
+            <div className="flex justify-center gap-4">
+              <Button 
+                className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white shadow-md flex items-center justify-center"
+                onClick={() => handleCommand('NAVIGATE', 'MENU')}
+                disabled={loading || !isPoweredOn}
+              >
+                <FaBars className="mr-1" /> Menu
+              </Button>
+              
+              <Button 
+                className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white shadow-md flex items-center justify-center"
+                onClick={() => handleCommand('NAVIGATE', 'RETURN')}
+                disabled={loading || !isPoweredOn}
+              >
+                <FaUndo className="mr-1" /> Return
+              </Button>
+              
+              <Button 
+                className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white shadow-md flex items-center justify-center"
+                onClick={() => handleCommand('NAVIGATE', 'HOME')}
+                disabled={loading || !isPoweredOn}
+              >
+                <FaHome className="mr-1" /> Home
+              </Button>
+            </div>
+          </div>
+          
+          {/* Playback Controls */}
+          <div className="mb-4">
+            <div className="text-white mb-2 font-medium">Playback Controls</div>
+            <div className="flex justify-between">
+              <Button 
+                className="h-12 w-12 rounded-full bg-slate-700 hover:bg-slate-600 text-white shadow-md flex items-center justify-center"
+                onClick={() => handleCommand('PLAYBACK', 'PREVIOUS')}
+                disabled={loading || !isPoweredOn}
+              >
+                <FaStepBackward />
+              </Button>
+              
+              <Button 
+                className="h-12 w-12 rounded-full bg-slate-700 hover:bg-slate-600 text-white shadow-md flex items-center justify-center"
+                onClick={() => handleCommand('PLAYBACK', 'PLAY')}
+                disabled={loading || !isPoweredOn}
+              >
+                <FaPlay />
+              </Button>
+              
+              <Button 
+                className="h-12 w-12 rounded-full bg-slate-700 hover:bg-slate-600 text-white shadow-md flex items-center justify-center"
+                onClick={() => handleCommand('PLAYBACK', 'PAUSE')}
+                disabled={loading || !isPoweredOn}
+              >
+                <FaPause />
+              </Button>
+              
+              <Button 
+                className="h-12 w-12 rounded-full bg-slate-700 hover:bg-slate-600 text-white shadow-md flex items-center justify-center"
+                onClick={() => handleCommand('PLAYBACK', 'STOP')}
+                disabled={loading || !isPoweredOn}
+              >
+                <FaStop />
+              </Button>
+              
+              <Button 
+                className="h-12 w-12 rounded-full bg-slate-700 hover:bg-slate-600 text-white shadow-md flex items-center justify-center"
+                onClick={() => handleCommand('PLAYBACK', 'NEXT')}
+                disabled={loading || !isPoweredOn}
+              >
+                <FaStepForward />
+              </Button>
+            </div>
+          </div>
+          
+          {/* Model info */}
+          <div className="text-center text-gray-400 text-xs mt-6">
+            Denon AVR-X4500H Smart Home Controller
+          </div>
+        </div>
       </div>
     </div>
   );

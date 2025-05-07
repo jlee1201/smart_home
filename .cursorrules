@@ -27,3 +27,10 @@
     "autoAgentEnabled": true
   }
 } 
+
+
+# additional notes
+note: project uses nodemon on the server and vite in HMR mode on the client -- so server automatically restarts when server files are changed and browser autoloads changes to client files
+
+# additional instructions
+if the .env file needs to be updated, prompt me to make the change rather than trying to make the change yourself.  Once I've made the change, I will let you know and you can continue with your task.
