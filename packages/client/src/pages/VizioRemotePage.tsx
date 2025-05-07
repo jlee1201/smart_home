@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react';
 import { gql, useMutation, useQuery, useSubscription } from '@apollo/client';
 import { Button, Card, Input } from '@design-system';
 import { Link } from 'react-router-dom';
+import { FaPowerOff, FaVolumeUp, FaVolumeDown, FaVolumeMute, FaVolumeOff, FaExchangeAlt, FaArrowLeft, 
+         FaHome, FaBars, FaInfoCircle, FaBackspace, FaList, FaFastBackward, FaPlay, FaPause, FaStop, 
+         FaFastForward } from 'react-icons/fa';
 
 // HMR test comment - this should update without a full page reload
 console.log('VizioRemotePage updated - HMR test', new Date().toISOString());
@@ -292,8 +295,9 @@ export function VizioRemotePage() {
               className="w-14 h-14 rounded-full bg-red-600 hover:bg-red-700 text-white font-bold shadow-md"
               onClick={() => handleCommand('POWER')}
               disabled={loading}
+              title="Turn TV On/Off"
             >
-              {isPoweredOn ? 'OFF' : 'ON'}
+              <FaPowerOff />
             </Button>
             
             <Button 
@@ -305,16 +309,18 @@ export function VizioRemotePage() {
                 else handleCommand('INPUT_HDMI_1');
               }}
               disabled={loading || !isPoweredOn}
+              title="Change Input Source"
             >
-              Input
+              <FaExchangeAlt />
             </Button>
             
             <Button 
               className="w-14 h-14 rounded-full bg-slate-700 hover:bg-slate-600 text-white shadow-md"
               onClick={() => handleCommand('MUTE')}
               disabled={loading || !isPoweredOn}
+              title={isMuted ? "Unmute Sound" : "Mute Sound"}
             >
-              {isMuted ? 'UN-MUTE' : 'MUTE'}
+              {isMuted ? <FaVolumeOff /> : <FaVolumeMute />}
             </Button>
           </div>
           
@@ -332,8 +338,9 @@ export function VizioRemotePage() {
                 onClick={() => handleCommand('VOLUME_UP')} 
                 disabled={loading || !isPoweredOn}
                 style={{ width: '48px', height: '48px' }}
+                title="Increase Volume"
               >
-                +
+                <FaVolumeUp />
               </Button>
               <span className="text-white text-xs">VOL</span>
               <Button 
@@ -341,8 +348,9 @@ export function VizioRemotePage() {
                 onClick={() => handleCommand('VOLUME_DOWN')} 
                 disabled={loading || !isPoweredOn}
                 style={{ width: '48px', height: '48px' }}
+                title="Decrease Volume"
               >
-                -
+                <FaVolumeDown />
               </Button>
             </div>
             
@@ -366,6 +374,7 @@ export function VizioRemotePage() {
                 onClick={() => handleCommand('UP')} 
                 disabled={loading || !isPoweredOn}
                 style={{ gridArea: 'up' }}
+                title="Navigate Up"
               >
                 ▲
               </Button>
@@ -376,6 +385,7 @@ export function VizioRemotePage() {
                 onClick={() => handleCommand('LEFT')} 
                 disabled={loading || !isPoweredOn}
                 style={{ gridArea: 'left' }}
+                title="Navigate Left"
               >
                 ◀
               </Button>
@@ -386,6 +396,7 @@ export function VizioRemotePage() {
                 onClick={() => handleCommand('OK')} 
                 disabled={loading || !isPoweredOn}
                 style={{ gridArea: 'ok', width: '56px', height: '56px' }}
+                title="Select/Confirm"
               >
                 OK
               </Button>
@@ -396,6 +407,7 @@ export function VizioRemotePage() {
                 onClick={() => handleCommand('RIGHT')} 
                 disabled={loading || !isPoweredOn}
                 style={{ gridArea: 'right' }}
+                title="Navigate Right"
               >
                 ▶
               </Button>
@@ -406,6 +418,7 @@ export function VizioRemotePage() {
                 onClick={() => handleCommand('DOWN')} 
                 disabled={loading || !isPoweredOn}
                 style={{ gridArea: 'down' }}
+                title="Navigate Down"
               >
                 ▼
               </Button>
@@ -423,6 +436,7 @@ export function VizioRemotePage() {
                 onClick={() => handleCommand('CHANNEL_UP')} 
                 disabled={loading || !isPoweredOn}
                 style={{ width: '48px', height: '48px' }}
+                title="Channel Up"
               >
                 +
               </Button>
@@ -432,6 +446,7 @@ export function VizioRemotePage() {
                 onClick={() => handleCommand('CHANNEL_DOWN')} 
                 disabled={loading || !isPoweredOn}
                 style={{ width: '48px', height: '48px' }}
+                title="Channel Down"
               >
                 -
               </Button>
@@ -444,32 +459,36 @@ export function VizioRemotePage() {
               className="px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-sm shadow-md" 
               onClick={() => handleCommand('BACK')} 
               disabled={loading || !isPoweredOn}
+              title="Go Back"
             >
-              Back
+              <FaArrowLeft />
             </Button>
             
             <Button 
               className="px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-sm shadow-md" 
               onClick={() => handleCommand('HOME')} 
               disabled={loading || !isPoweredOn}
+              title="Go to Home Screen"
             >
-              Home
+              <FaHome />
             </Button>
             
             <Button 
               className="px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-sm shadow-md" 
               onClick={() => handleCommand('MENU')} 
               disabled={loading || !isPoweredOn}
+              title="Open Menu"
             >
-              Menu
+              <FaBars />
             </Button>
             
             <Button 
               className="px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-sm shadow-md" 
               onClick={() => handleCommand('INFO')} 
               disabled={loading || !isPoweredOn}
+              title="Show Program Info"
             >
-              Info
+              <FaInfoCircle />
             </Button>
           </div>
           
@@ -481,6 +500,7 @@ export function VizioRemotePage() {
                 className="h-14 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-lg shadow-md"
                 onClick={() => handleCommand('NUMBER', '1')}
                 disabled={loading || !isPoweredOn}
+                title="Press Number 1"
               >
                 1
               </Button>
@@ -488,6 +508,7 @@ export function VizioRemotePage() {
                 className="h-14 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-lg shadow-md"
                 onClick={() => handleCommand('NUMBER', '2')}
                 disabled={loading || !isPoweredOn}
+                title="Press Number 2"
               >
                 2
               </Button>
@@ -495,6 +516,7 @@ export function VizioRemotePage() {
                 className="h-14 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-lg shadow-md"
                 onClick={() => handleCommand('NUMBER', '3')}
                 disabled={loading || !isPoweredOn}
+                title="Press Number 3"
               >
                 3
               </Button>
@@ -504,6 +526,7 @@ export function VizioRemotePage() {
                 className="h-14 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-lg shadow-md"
                 onClick={() => handleCommand('NUMBER', '4')}
                 disabled={loading || !isPoweredOn}
+                title="Press Number 4"
               >
                 4
               </Button>
@@ -511,6 +534,7 @@ export function VizioRemotePage() {
                 className="h-14 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-lg shadow-md"
                 onClick={() => handleCommand('NUMBER', '5')}
                 disabled={loading || !isPoweredOn}
+                title="Press Number 5"
               >
                 5
               </Button>
@@ -518,6 +542,7 @@ export function VizioRemotePage() {
                 className="h-14 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-lg shadow-md"
                 onClick={() => handleCommand('NUMBER', '6')}
                 disabled={loading || !isPoweredOn}
+                title="Press Number 6"
               >
                 6
               </Button>
@@ -527,6 +552,7 @@ export function VizioRemotePage() {
                 className="h-14 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-lg shadow-md"
                 onClick={() => handleCommand('NUMBER', '7')}
                 disabled={loading || !isPoweredOn}
+                title="Press Number 7"
               >
                 7
               </Button>
@@ -534,6 +560,7 @@ export function VizioRemotePage() {
                 className="h-14 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-lg shadow-md"
                 onClick={() => handleCommand('NUMBER', '8')}
                 disabled={loading || !isPoweredOn}
+                title="Press Number 8"
               >
                 8
               </Button>
@@ -541,6 +568,7 @@ export function VizioRemotePage() {
                 className="h-14 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-lg shadow-md"
                 onClick={() => handleCommand('NUMBER', '9')}
                 disabled={loading || !isPoweredOn}
+                title="Press Number 9"
               >
                 9
               </Button>
@@ -550,13 +578,15 @@ export function VizioRemotePage() {
                 className="h-14 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-sm shadow-md"
                 onClick={() => handleCommand('EXIT')}
                 disabled={loading || !isPoweredOn}
+                title="Exit Current Screen"
               >
-                Exit
+                <FaBackspace />
               </Button>
               <Button
                 className="h-14 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-lg shadow-md"
                 onClick={() => handleCommand('NUMBER', '0')}
                 disabled={loading || !isPoweredOn}
+                title="Press Number 0"
               >
                 0
               </Button>
@@ -564,8 +594,9 @@ export function VizioRemotePage() {
                 className="h-14 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-sm shadow-md"
                 onClick={() => handleCommand('GUIDE')}
                 disabled={loading || !isPoweredOn}
+                title="Show TV Guide"
               >
-                Guide
+                <FaList />
               </Button>
             </div>
           </div>
@@ -576,40 +607,45 @@ export function VizioRemotePage() {
               className="w-10 h-10 rounded-full bg-slate-700 hover:bg-slate-600 text-white shadow-md"
               onClick={() => handleCommand('REWIND')} 
               disabled={loading || !isPoweredOn}
+              title="Rewind"
             >
-              ⏪
+              <FaFastBackward />
             </Button>
             
             <Button 
               className="w-10 h-10 rounded-full bg-slate-700 hover:bg-slate-600 text-white shadow-md"
               onClick={() => handleCommand('PLAY')} 
               disabled={loading || !isPoweredOn}
+              title="Play"
             >
-              ▶
+              <FaPlay />
             </Button>
             
             <Button 
               className="w-10 h-10 rounded-full bg-slate-700 hover:bg-slate-600 text-white shadow-md"
               onClick={() => handleCommand('PAUSE')} 
               disabled={loading || !isPoweredOn}
+              title="Pause"
             >
-              ⏸
+              <FaPause />
             </Button>
             
             <Button 
               className="w-10 h-10 rounded-full bg-slate-700 hover:bg-slate-600 text-white shadow-md"
               onClick={() => handleCommand('STOP')} 
               disabled={loading || !isPoweredOn}
+              title="Stop"
             >
-              ⏹
+              <FaStop />
             </Button>
             
             <Button 
               className="w-10 h-10 rounded-full bg-slate-700 hover:bg-slate-600 text-white shadow-md"
               onClick={() => handleCommand('FAST_FORWARD')} 
               disabled={loading || !isPoweredOn}
+              title="Fast Forward"
             >
-              ⏩
+              <FaFastForward />
             </Button>
           </div>
           
@@ -619,6 +655,7 @@ export function VizioRemotePage() {
               className="px-3 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm shadow-md"
               onClick={() => handleCommand('APP_NETFLIX')} 
               disabled={loading || !isPoweredOn}
+              title="Open Netflix App"
             >
               Netflix
             </Button>
@@ -627,6 +664,7 @@ export function VizioRemotePage() {
               className="px-3 py-2 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-sm shadow-md"
               onClick={() => handleCommand('APP_PRIME')} 
               disabled={loading || !isPoweredOn}
+              title="Open Prime Video App"
             >
               Prime
             </Button>
@@ -635,6 +673,7 @@ export function VizioRemotePage() {
               className="px-3 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white text-sm shadow-md"
               onClick={() => handleCommand('APP_YOUTUBE')} 
               disabled={loading || !isPoweredOn}
+              title="Open YouTube App"
             >
               YouTube
             </Button>
@@ -643,6 +682,7 @@ export function VizioRemotePage() {
               className="px-3 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-sm shadow-md"
               onClick={() => handleCommand('APP_DISNEY')} 
               disabled={loading || !isPoweredOn}
+              title="Open Disney+ App"
             >
               Disney+
             </Button>
