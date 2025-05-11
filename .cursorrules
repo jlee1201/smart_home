@@ -19,6 +19,46 @@
         "action": "verify_codesets",
         "auto": true
       }
+    },
+    {
+      "name": "Auto-Reload Configuration",
+      "description": "The project uses nodemon for server auto-restart and Vite with HMR for client-side hot reloading.",
+      "pattern": "packages/server/src/.*\\.(ts|js)$|packages/client/src/.*\\.(ts|tsx|js|jsx)$",
+      "prompt": "This project is configured with automatic reloading:\n\n1. Server-side: Changes to server files trigger automatic restart via nodemon\n2. Client-side: Changes to client files trigger hot module replacement via Vite HMR\n\nNo manual restart is needed when making changes to either codebase.",
+      "agent": {
+        "action": "inform_auto_reload",
+        "auto": true
+      }
+    },
+    {
+      "name": "Environment Variable Updates",
+      "description": "Prompt user for .env file changes instead of making them directly.",
+      "pattern": ".*",
+      "prompt": "If the .env file needs to be updated, prompt the user to make the change rather than trying to make the change directly. Once the user has made the change, they will confirm and you can continue with the task.",
+      "agent": {
+        "action": "env_file_handling",
+        "auto": true
+      }
+    },
+    {
+      "name": "Auto-Reload Note",
+      "description": "Reminder about project's auto-reload configuration.",
+      "pattern": ".*",
+      "prompt": "Note: This project uses nodemon on the server and Vite in HMR mode on the client -- so the server automatically restarts when server files are changed and the browser automatically reloads changes to client files.",
+      "agent": {
+        "action": "auto_reload_note",
+        "auto": true
+      }
+    },
+    {
+      "name": "User Choice Required",
+      "description": "When multiple implementation options exist, prompt the user to choose before proceeding.",
+      "pattern": ".*",
+      "prompt": "When you identify multiple potential solutions or implementation approaches, do NOT proceed with implementing any of them automatically. Instead, clearly present all viable options to the user with:\n\n1. A brief name/title for each option\n2. A concise explanation of what each option entails\n3. The key pros and cons of each approach\n4. Your recommended option (if you have one) and why\n\nThen explicitly ask the user which option they prefer before proceeding with implementation.",
+      "agent": {
+        "action": "require_user_choice",
+        "auto": true
+      }
     }
   ],
   "settings": {
@@ -26,11 +66,4 @@
     "promptOnSave": true,
     "autoAgentEnabled": true
   }
-} 
-
-
-# additional notes
-note: project uses nodemon on the server and vite in HMR mode on the client -- so server automatically restarts when server files are changed and browser autoloads changes to client files
-
-# additional instructions
-if the .env file needs to be updated, prompt me to make the change rather than trying to make the change yourself.  Once I've made the change, I will let you know and you can continue with your task.
+}

@@ -533,9 +533,9 @@ class TVService {
           await this.vizioApi.launchApp('Netflix');
           break;
           
-        case 'APP_YOUTUBE':
+        case 'APP_YOUTUBE_TV':
           if (!this.status.isPoweredOn) return false;
-          await this.vizioApi.launchApp('YouTube');
+          await this.vizioApi.launchApp('YouTubeTV');
           break;
           
         case 'APP_PRIME':

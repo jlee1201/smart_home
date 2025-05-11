@@ -1,0 +1,6 @@
+This project uses yarn for package management, not NPM.
+
+When suggesting commands or making changes that involve package management:
+1. Use yarn commands (e.g., `yarn add`, `yarn remove`) instead of npm commands
+2. For running scripts, use `yarn [script]` instead of `npm run [script]`
+3. For workspaces, use `yarn wospace [name] [command]` instead of `npm run [command] -w [name]`

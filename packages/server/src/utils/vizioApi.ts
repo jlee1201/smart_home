@@ -90,10 +90,23 @@ export class VizioAPI {
           requestData = data ? { data } : undefined;
         }
       }
+      // For app launch endpoint, don't use the data wrapper - send data directly as shown in curl tests
+      else if (endpoint === '/app/launch') {
+        requestData = data;
+      }
       // For all other endpoints, use the data wrapper as needed by the Vizio API
       else {
         requestData = data ? { data } : undefined;
       }
+      
+      // Add detailed logging right before the request is sent
+      logger.info('Preparing to send request', {
+        method,
+        url,
+        headers: requiresAuth ? { AUTH: this.authToken ? `${this.authToken.substring(0, 5)}...` : 'null' } : {},
+        endpoint,
+        requestDataPreview: requestData ? JSON.stringify(requestData).substring(0, 500) : 'null'
+      });
       
       const response = await axios({
         method,
@@ -950,18 +963,217 @@ export class VizioAPI {
    * Launch a smart app
    */
   async launchApp(appName: string): Promise<void> {
-    const data = {
-      REQUEST: "LAUNCH",
+    logger.info(`Attempting to launch app: ${appName}`);
+    
+    // Normalize app name to handle different formats from the UI
+    let normalizedAppName = appName;
+    
+    // Check if app name has a prefix like APP_ and remove it
+    if (appName.startsWith('APP_')) {
+      normalizedAppName = appName.substring(4);
+    }
+    
+    // Based on testing and official Vizio SmartCast API documentation
+    // Map app names to their correct Vizio SmartCast API details
+    const appMap: Record<string, { NAME_SPACE: number, APP_ID: string, MESSAGE?: string }> = {
+      // CONFIRMED WORKING apps through testing
+      'Netflix': { NAME_SPACE: 3, APP_ID: '1' },
+      'YouTube': { NAME_SPACE: 5, APP_ID: '1' },
+      'YouTubeTV': { NAME_SPACE: 5, APP_ID: '3', MESSAGE: '' },
+      
+      // Apps that need further testing - updated with most likely working configurations
+      'Amazon Prime Video': { 
+        NAME_SPACE: 3, 
+        APP_ID: '3', 
+        MESSAGE: JSON.stringify({
+          intent: {
+            action: "intent.action.VIEW"
+          }
+        })
+      },
+      'Prime Video': { 
+        NAME_SPACE: 3, 
+        APP_ID: '3', 
+        MESSAGE: JSON.stringify({
+          intent: {
+            action: "intent.action.VIEW"
+          }
+        })
+      },
+      'Disney+': { 
+        NAME_SPACE: 4, 
+        APP_ID: '75', 
+        MESSAGE: '' 
+      },
+      'Hulu': { 
+        NAME_SPACE: 0, 
+        APP_ID: '8DF1D669', 
+        MESSAGE: JSON.stringify({
+          CAST_NAMESPACE: "urn:x-cast:com.hulu.plus",
+          CAST_MESSAGE: {
+            type: "LOAD",
+            media: {},
+            autoplay: true
+          }
+        })
+      },
+      'Plex': { 
+        NAME_SPACE: 0, 
+        APP_ID: '7F0BDD9D', 
+        MESSAGE: JSON.stringify({
+          CAST_NAMESPACE: "urn:x-cast:plex",
+          CAST_MESSAGE: {
+            type: "LOAD",
+            media: {},
+            autoplay: true
+          }
+        })
+      },
+      
+      // Special cases with specific MESSAGE values (per official docs)
+      'Vudu': { 
+        NAME_SPACE: 2, 
+        APP_ID: '21', 
+        MESSAGE: 'https://my.vudu.com/castReceiver/index.html?launch-source=app-icon' 
+      },
+      'Haystack TV': { 
+        NAME_SPACE: 0, 
+        APP_ID: '898AF734', 
+        MESSAGE: JSON.stringify({
+          CAST_NAMESPACE: "urn:x-cast:com.google.cast.media",
+          CAST_MESSAGE: {
+            type: "LOAD",
+            media: {},
+            autoplay: true,
+            currentTime: 0,
+            customData: {
+              platform: "sctv"
+            }
+          }
+        })
+      },
+      
+      // Normalized UI command names (uppercase versions)
+      'NETFLIX': { NAME_SPACE: 3, APP_ID: '1' },
+      'YOUTUBE': { NAME_SPACE: 5, APP_ID: '1' },
+      'YOUTUBE TV': { NAME_SPACE: 5, APP_ID: '3', MESSAGE: '' },
+      'PRIME': { 
+        NAME_SPACE: 3, 
+        APP_ID: '3', 
+        MESSAGE: JSON.stringify({
+          intent: {
+            action: "intent.action.VIEW"
+          }
+        })
+      },
+      'PRIME VIDEO': { 
+        NAME_SPACE: 3, 
+        APP_ID: '3', 
+        MESSAGE: JSON.stringify({
+          intent: {
+            action: "intent.action.VIEW"
+          }
+        })
+      },
+      'DISNEY+': { 
+        NAME_SPACE: 4, 
+        APP_ID: '75', 
+        MESSAGE: '' 
+      },
+      'DISNEY': { 
+        NAME_SPACE: 4, 
+        APP_ID: '75', 
+        MESSAGE: '' 
+      },
+      'HULU': { 
+        NAME_SPACE: 0, 
+        APP_ID: '8DF1D669', 
+        MESSAGE: JSON.stringify({
+          CAST_NAMESPACE: "urn:x-cast:com.hulu.plus",
+          CAST_MESSAGE: {
+            type: "LOAD",
+            media: {},
+            autoplay: true
+          }
+        })
+      },
+      'PLEX': { 
+        NAME_SPACE: 0, 
+        APP_ID: '7F0BDD9D', 
+        MESSAGE: JSON.stringify({
+          CAST_NAMESPACE: "urn:x-cast:plex",
+          CAST_MESSAGE: {
+            type: "LOAD",
+            media: {},
+            autoplay: true
+          }
+        })
+      },
+      'PLUTO': { 
+        NAME_SPACE: 0, 
+        APP_ID: 'E6F74C01', 
+        MESSAGE: JSON.stringify({
+          CAST_NAMESPACE: "urn:x-cast:tv.pluto",
+          CAST_MESSAGE: {
+            command: "initializePlayback",
+            channel: "",
+            episode: "",
+            time: 0
+          }
+        })
+      },
+      'Pluto TV': { 
+        NAME_SPACE: 0, 
+        APP_ID: 'E6F74C01', 
+        MESSAGE: JSON.stringify({
+          CAST_NAMESPACE: "urn:x-cast:tv.pluto",
+          CAST_MESSAGE: {
+            command: "initializePlayback",
+            channel: "",
+            episode: "",
+            time: 0
+          }
+        })
+      },
+      'XUMO': { 
+        NAME_SPACE: 0, 
+        APP_ID: '36E1EA1F', 
+        MESSAGE: JSON.stringify({
+          CAST_NAMESPACE: "urn:x-cast:com.google.cast.media",
+          CAST_MESSAGE: {
+            type: "LOAD",
+            media: {},
+            autoplay: true,
+            currentTime: 0,
+            customData: {}
+          }
+        })
+      }
+    };
+
+    // Get the app config or use default values if not in our map
+    const appConfig = appMap[normalizedAppName] || { 
+      NAME_SPACE: 2,  // Use NameSpace 2 as default based on most apps using it
+      APP_ID: '1'
+    };
+    
+    logger.info(`Using app config for ${normalizedAppName}: NAME_SPACE=${appConfig.NAME_SPACE}, APP_ID=${appConfig.APP_ID}${appConfig.MESSAGE ? ', has custom MESSAGE' : ''}`);
+    
+    // Create the payload according to the official Vizio SmartCast API format
+    const data: any = {
       VALUE: {
-        NAME: appName
+        NAME_SPACE: appConfig.NAME_SPACE,
+        APP_ID: appConfig.APP_ID,
+        MESSAGE: appConfig.MESSAGE || ""  // Always include MESSAGE field, empty string if not specified
       }
     };
     
     try {
+      logger.debug('Sending app launch request with data:', { data });
       await this.sendRequest('/app/launch', 'PUT', data);
-      logger.info(`App ${appName} launched successfully`);
+      logger.info(`App ${normalizedAppName} launched successfully`);
     } catch (error) {
-      logger.error(`Error launching app ${appName}`, { 
+      logger.error(`Error launching app ${normalizedAppName}`, { 
         error: error instanceof Error ? error.message : String(error)
       });
       
@@ -972,7 +1184,7 @@ export class VizioAPI {
         if (pubsub && addErrorToLog) {
           await addErrorToLog(
             pubsub, 
-            `Failed to launch app: ${appName}`,
+            `Failed to launch app: ${normalizedAppName}`,
             JSON.stringify({
               request: {
                 method: 'PUT',

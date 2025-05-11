@@ -671,11 +671,11 @@ export function VizioRemotePage() {
             
             <Button 
               className="px-3 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white text-sm shadow-md"
-              onClick={() => handleCommand('APP_YOUTUBE')} 
+              onClick={() => handleCommand('APP_YOUTUBE_TV')} 
               disabled={loading || !isPoweredOn}
-              title="Open YouTube App"
+              title="Open YouTube TV App"
             >
-              YouTube
+              YouTube TV
             </Button>
             
             <Button 

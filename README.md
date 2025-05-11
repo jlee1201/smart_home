@@ -95,11 +95,28 @@ VIZIO_DEVICE_NAME="Smart Home Remote"
 - **Vizio SmartCast API Documentation**: This project's TV control functionality is based on the [Vizio SmartCast API documentation](https://github.com/exiva/Vizio_SmartCast_API).
 - **vizio-smart-cast Library**: Implementation references from [heathbar/vizio-smart-cast](https://github.com/heathbar/vizio-smart-cast) JavaScript library.
 
+### Supported Vizio TV Apps
+The application supports launching the following apps on compatible Vizio SmartCast TVs:
+- Netflix (NAME_SPACE: 3, APP_ID: 1)
+- YouTube TV (NAME_SPACE: 5, APP_ID: 3)
+- Amazon Prime Video (NAME_SPACE: 3, APP_ID: 3)
+- Disney+ (NAME_SPACE: 4, APP_ID: 75)
+- Hulu (NAME_SPACE: 2, APP_ID: 3)
+- Plex (NAME_SPACE: 2, APP_ID: 9)
+- Vudu (NAME_SPACE: 2, APP_ID: 21, with custom message URL)
+- AsianCrush (NAME_SPACE: 2, APP_ID: 27, with custom message URL)
+- Haystack TV (NAME_SPACE: 0, APP_ID: 898AF734, with custom message)
+- XUMO (NAME_SPACE: 0, APP_ID: 36E1EA1F, with custom message)
+- Pluto TV (NAME_SPACE: 0, APP_ID: E6F74C01, with custom message)
+
+Additional apps may be added in future updates. For a complete reference of app IDs and configuration parameters, see the [Vizio SmartCast API App IDs documentation](https://github.com/exiva/Vizio_SmartCast_API#app-ids).
+
 ### Development Tools
 - **Language**: TypeScript
 - **Testing**: Jest
 - **Linting**: ESLint
 - **Formatting**: Prettier
+- **Package Manager**: Yarn
 
 ## Application Architecture
 
@@ -136,6 +153,15 @@ The application uses a PostgreSQL database with the following schema:
 - `yarn format`: Format code with Prettier
 - `yarn prisma:studio`: Open Prisma Studio to manage database
 - `yarn prisma:migrate`: Run database migrations
+
+### Auto-Reload Development Experience
+
+The project is configured for a seamless development experience:
+
+- **Server**: Uses nodemon to automatically restart when server files are changed
+- **Client**: Uses Vite with Hot Module Replacement (HMR) to automatically reload browser content when client files are changed
+
+This means you can edit code in real-time and see changes without manually restarting the server or refreshing the browser.
 
 ### Database Management
 
