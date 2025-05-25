@@ -18,12 +18,7 @@ const DENON_AVR_CONNECTION_STATUS_QUERY = gql`
   }
 `;
 
-interface HomePageProps {
-  message: string;
-  currentInput: string;
-}
-
-export function HomePage({ message, currentInput }: HomePageProps) {
+export function HomePage() {
   const { data: tvConnectionData } = useQuery(TV_CONNECTION_STATUS_QUERY);
   const { data: denonAvrConnectionData } = useQuery(DENON_AVR_CONNECTION_STATUS_QUERY);
   
@@ -35,24 +30,6 @@ export function HomePage({ message, currentInput }: HomePageProps) {
       <h2>Welcome to your Smart Home</h2>
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
-        <Card 
-          title="Server Connection" 
-          subtitle="Status information from the backend"
-        >
-          <p>
-            Message from server: <span className="font-medium">{message}</span>
-          </p>
-        </Card>
-        
-        <Card 
-          title="Current Input"
-          subtitle="Real-time data input status"
-        >
-          <p>
-            Current input value: <span className="font-medium">{currentInput || 'No input'}</span>
-          </p>
-        </Card>
-
         <Card
           title="Vizio TV Status"
           subtitle="TV connection status"

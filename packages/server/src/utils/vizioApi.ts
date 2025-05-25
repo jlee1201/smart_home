@@ -1277,6 +1277,95 @@ export class VizioAPI {
       return ['HDMI-1', 'HDMI-2', 'HDMI-3', 'HDMI-4', 'TV', 'COMP', 'AV', 'SMARTCAST'];
     }
   }
+
+  /**
+   * Get currently running app
+   */
+  async getCurrentApp(): Promise<string> {
+    try {
+      const response = await this.sendRequest('/app/current');
+      logger.debug('Current app response:', { response });
+      
+      if (response && response.ITEM && response.ITEM.VALUE) {
+        const { APP_ID, NAME_SPACE } = response.ITEM.VALUE;
+        
+        // Map the APP_ID and NAME_SPACE to a human-readable app name
+        const appName = this.mapAppIdToName(NAME_SPACE, APP_ID);
+        logger.debug(`Current app: ${appName} (NAME_SPACE: ${NAME_SPACE}, APP_ID: ${APP_ID})`);
+        
+        return appName;
+      }
+      
+      logger.debug('No app currently running or invalid response format');
+      return 'No App Running';
+    } catch (error) {
+      logger.debug('Error getting current app', {
+        error: error instanceof Error ? error.message : String(error)
+      });
+      
+      // Return a default value if we can't determine the current app
+      return 'Unknown';
+    }
+  }
+
+  /**
+   * Map APP_ID and NAME_SPACE to human-readable app name
+   */
+  private mapAppIdToName(nameSpace: number, appId: string): string {
+    // Create a reverse mapping from the app launch configuration
+    const appMappings: Array<{ nameSpace: number, appId: string, name: string }> = [
+      // CONFIRMED WORKING apps
+      { nameSpace: 3, appId: '1', name: 'Netflix' },
+      { nameSpace: 5, appId: '1', name: 'YouTube' },
+      { nameSpace: 5, appId: '3', name: 'YouTube TV' },
+      
+      // Other popular apps
+      { nameSpace: 3, appId: '3', name: 'Prime Video' },
+      { nameSpace: 4, appId: '75', name: 'Disney+' },
+      { nameSpace: 2, appId: '3', name: 'Hulu' },
+      { nameSpace: 2, appId: '9', name: 'Plex' },
+      { nameSpace: 2, appId: '21', name: 'Vudu' },
+      { nameSpace: 0, appId: '898AF734', name: 'Haystack TV' },
+      { nameSpace: 0, appId: '36E1EA1F', name: 'XUMO' },
+      { nameSpace: 0, appId: 'E6F74C01', name: 'Pluto TV' },
+      
+      // Additional apps from the official API docs
+      { nameSpace: 2, appId: '4', name: 'Prime Video' },
+      { nameSpace: 2, appId: '5', name: 'Crackle' },
+      { nameSpace: 2, appId: '6', name: 'iHeartRadio' },
+      { nameSpace: 2, appId: '7', name: 'Fandango Now' },
+      { nameSpace: 2, appId: '10', name: 'NBC' },
+      { nameSpace: 2, appId: '11', name: 'Baeble' },
+      { nameSpace: 2, appId: '12', name: 'Curiosity Stream' },
+      { nameSpace: 2, appId: '15', name: 'Newsy' },
+      { nameSpace: 2, appId: '16', name: 'Dove Channel' },
+      { nameSpace: 2, appId: '18', name: 'ConTV' },
+      { nameSpace: 2, appId: '22', name: 'WatchFree' },
+      { nameSpace: 2, appId: '24', name: 'FilmRise' },
+      { nameSpace: 2, appId: '26', name: 'TasteIt' },
+      { nameSpace: 2, appId: '27', name: 'AsianCrush' },
+      { nameSpace: 2, appId: '34', name: 'DAZN' },
+      { nameSpace: 2, appId: '36', name: 'Flixfling' },
+      { nameSpace: 2, appId: '37', name: 'CBS All Access' },
+      { nameSpace: 2, appId: '39', name: 'FitFusion' },
+      { nameSpace: 2, appId: '41', name: 'Redbox' },
+      { nameSpace: 2, appId: '42', name: 'CBS News' },
+      { nameSpace: 2, appId: '55', name: 'Cocoro TV' },
+      { nameSpace: 2, appId: '57', name: 'Love Destination' },
+    ];
+    
+    // Find matching app
+    const matchingApp = appMappings.find(app => 
+      app.nameSpace === nameSpace && app.appId === appId
+    );
+    
+    if (matchingApp) {
+      return matchingApp.name;
+    }
+    
+    // If no match found, return a descriptive unknown app name
+    return `Unknown App (NS:${nameSpace}, ID:${appId})`;
+  }
 }
 
 // Helper function to create VizioAPI instance from environment variables

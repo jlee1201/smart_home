@@ -9,6 +9,7 @@ export type TVStatus = {
   isMuted: boolean;
   input: string;
   supportedInputs: string[];
+  currentApp: string;
 };
 
 class TVService {
@@ -22,7 +23,8 @@ class TVService {
     channel: '1',
     isMuted: false,
     input: 'HDMI1',
-    supportedInputs: ['HDMI1', 'HDMI2', 'HDMI3', 'HDMI4']
+    supportedInputs: ['HDMI1', 'HDMI2', 'HDMI3', 'HDMI4'],
+    currentApp: 'Unknown'
   };
   private statusPollingInterval: NodeJS.Timeout | null = null;
   
@@ -34,7 +36,8 @@ class TVService {
       channel: '1',
       isMuted: false,
       input: 'HDMI1',
-      supportedInputs: ['HDMI1', 'HDMI2', 'HDMI3', 'HDMI4']
+      supportedInputs: ['HDMI1', 'HDMI2', 'HDMI3', 'HDMI4'],
+      currentApp: 'Unknown'
     };
     
     // Only enter simulation mode if explicitly set to 'false'
@@ -338,6 +341,37 @@ class TVService {
             });
           }
         }
+
+        // Get current app if TV is on and input is SMARTCAST
+        if (this.hasValidAuthToken && this.status.input === 'SMARTCAST') {
+          try {
+            const previousApp = this.status.currentApp;
+            const currentApp = await this.vizioApi.getCurrentApp();
+            this.status.currentApp = currentApp;
+            
+            // Check if app changed and emit event for real-time updates
+            if (previousApp !== currentApp && previousApp !== 'Unknown') {
+              logger.info(`TV app changed from ${previousApp} to ${currentApp}`);
+              this.emitAppChangeEvent(currentApp, previousApp);
+            }
+          } catch (error: any) {
+            logger.debug('Could not retrieve current app from TV', { 
+              error: error?.message || 'Empty error' 
+            });
+            // Set to unknown if we can't determine the app
+            this.status.currentApp = 'Unknown';
+          }
+        } else if (this.status.input !== 'SMARTCAST') {
+          // If not on SMARTCAST input, no app is running
+          const previousApp = this.status.currentApp;
+          this.status.currentApp = 'No App Running';
+          
+          // Emit app change event if we were previously showing an app
+          if (previousApp !== 'No App Running' && previousApp !== 'Unknown') {
+            logger.info(`TV app changed from ${previousApp} to No App Running (input: ${this.status.input})`);
+            this.emitAppChangeEvent('No App Running', previousApp);
+          }
+        }
       }
       
       logger.debug('TV status refreshed', { status: this.status });
@@ -416,6 +450,29 @@ class TVService {
         logger.debug('Failed to emit tv-connection-change event', { error: e });
       }
       */
+    }
+  }
+
+  /**
+   * Emit app change event for real-time subscriptions
+   */
+  private emitAppChangeEvent(currentApp: string, previousApp: string): void {
+    try {
+      // Import the pubsub instance and publish app change event
+      const pubsub = (global as any).pubsub;
+      if (pubsub) {
+        pubsub.publish('APP_CHANGED', {
+          appChanged: {
+            currentApp,
+            previousApp,
+            timestamp: new Date().toISOString(),
+            tvStatus: this.status
+          }
+        });
+        logger.debug('Published app change event', { currentApp, previousApp });
+      }
+    } catch (error) {
+      logger.debug('Failed to emit app change event', { error });
     }
   }
   

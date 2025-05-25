@@ -13,10 +13,16 @@ A web-based remote control application for Vizio SmartCast TVs that provides com
   - Smart app launching
   - Directional navigation
 
-- **Real-time Updates**: TV status changes are reflected immediately in the interface
-- **Smart Home Integration**: Designed to be part of a larger smart home system
+- **Denon AVR Control**
+  - Power on/off
+  - Volume adjustment
+  - Input selection
+  - Sound mode control
+
+- **Device Status Monitoring**: Real-time connection status for all connected devices
+- **Smart Home Integration**: Centralized control for multiple entertainment devices
 - **Responsive Design**: Works on desktop and mobile devices
-- **Persistent Configuration**: TV settings and auth tokens are stored in a database
+- **Persistent Configuration**: Device settings and auth tokens are stored in a database
 
 ## Getting Started
 
@@ -35,9 +41,9 @@ A web-based remote control application for Vizio SmartCast TVs that provides com
    yarn install
    ```
 
-### Vizio TV Configuration
+### Device Configuration
 
-To connect to your Vizio TV, create a `.env` file in the repository root with:
+To connect to your devices, create a `.env` file in the repository root with:
 
 ```
 # Server configuration
@@ -52,6 +58,11 @@ VIZIO_TV_IP=192.168.1.100  # Replace with your TV's IP address
 VIZIO_TV_PORT=7345         # Default Vizio SmartCast API port
 VIZIO_AUTH_TOKEN=          # Will be filled after pairing
 VIZIO_DEVICE_NAME="Smart Home Remote"
+
+# Denon AVR configuration
+ENABLE_DENON_AVR_CONNECTION=true
+DENON_AVR_IP=192.168.1.101 # Replace with your AVR's IP address
+DENON_AVR_PORT=23          # Default Denon telnet port
 ```
 
 **Finding your TV's IP address:**
@@ -90,6 +101,7 @@ VIZIO_DEVICE_NAME="Smart Home Remote"
 - **ORM**: Prisma
 - **Containerization**: Docker & Docker Compose
 - **TV Control**: Custom implementation of the Vizio SmartCast API
+- **AVR Control**: Custom implementation of the Denon telnet protocol
 
 ### Third-Party Resources
 - **Vizio SmartCast API Documentation**: This project's TV control functionality is based on the [Vizio SmartCast API documentation](https://github.com/exiva/Vizio_SmartCast_API).
@@ -129,12 +141,13 @@ The application follows a monorepo structure with two main packages:
 ### Data Flow
 1. **User Interface**: React components in the client package
 2. **API Layer**: GraphQL queries/mutations/subscriptions communicate with the server
-3. **Business Logic**: Server processes requests and communicates with the TV
-4. **Data Persistence**: PostgreSQL database stores TV settings and authentication tokens
+3. **Business Logic**: Server processes requests and communicates with connected devices
+4. **Data Persistence**: PostgreSQL database stores device settings and authentication tokens
 
 ### Key Components
 - **Apollo GraphQL Server**: Handles API requests and real-time subscriptions
 - **Vizio API Service**: Communicates with the Vizio SmartCast API
+- **Denon AVR Service**: Communicates with Denon AV receivers via telnet protocol
 - **Prisma ORM**: Manages database operations and schema
 - **React Router**: Handles client-side routing
 - **Apollo Client**: Manages GraphQL state and caching on the frontend
@@ -142,6 +155,7 @@ The application follows a monorepo structure with two main packages:
 ### Database Model
 The application uses a PostgreSQL database with the following schema:
 - `TVSettings`: Stores TV configuration including IP address, authentication tokens, and device information
+- `DenonAVRSettings`: Stores Denon AVR configuration and connection details
 
 ## Development
 

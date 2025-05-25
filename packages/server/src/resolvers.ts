@@ -17,6 +17,7 @@ export const TV_STATUS_CHANNEL = 'TV_STATUS_CHANGED';
 export const DENON_AVR_STATUS_CHANNEL = 'DENON_AVR_STATUS_CHANGED';
 export const ERROR_LOG_CHANNEL = 'ERROR_LOG_CHANGED';
 export const BUTTON_DEBUG_CHANNEL = 'BUTTON_DEBUG';
+export const APP_CHANGED_CHANNEL = 'APP_CHANGED';
 
 // Types
 type ResolverContext = { pubsub: PubSub };
@@ -161,6 +162,13 @@ type Resolvers = {
       ) => any;
     };
     buttonDebugInfo: {
+      subscribe: (
+        parent: any,
+        args: any,
+        context: ResolverContext
+      ) => any;
+    };
+    appChanged: {
       subscribe: (
         parent: any,
         args: any,
@@ -439,6 +447,18 @@ export const resolvers: Resolvers = {
           return pubsub.asyncIterator([BUTTON_DEBUG_CHANNEL]);
         } catch (error) {
           logger.error('Error in buttonDebugInfo subscription', { error });
+          throw new GraphQLError('Subscription error', {
+            extensions: { code: ErrorCode.INTERNAL_ERROR },
+          });
+        }
+      },
+    },
+    appChanged: {
+      subscribe: (_, __, { pubsub }) => {
+        try {
+          return pubsub.asyncIterator([APP_CHANGED_CHANNEL]);
+        } catch (error) {
+          logger.error('Error in appChanged subscription', { error });
           throw new GraphQLError('Subscription error', {
             extensions: { code: ErrorCode.INTERNAL_ERROR },
           });

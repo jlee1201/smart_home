@@ -16,6 +16,7 @@ export const typeDefs = `#graphql
     isMuted: Boolean
     input: String
     supportedInputs: [String]
+    currentApp: String
   }
 
   type TVConnectionStatus {
@@ -56,6 +57,13 @@ export const typeDefs = `#graphql
     code: String!
   }
 
+  type AppChangeEvent {
+    currentApp: String!
+    previousApp: String!
+    timestamp: String!
+    tvStatus: TVStatus!
+  }
+
   type Mutation {
     updateInput(value: String!): String
     sendTVCommand(command: String!, value: String): Boolean
@@ -73,5 +81,6 @@ export const typeDefs = `#graphql
     denonAvrStatusChanged: DenonAVRStatus
     errorLogChanged: [ErrorLog]
     buttonDebugInfo: ButtonDebugInfo
+    appChanged: AppChangeEvent
   }
 `;

@@ -11,12 +11,12 @@ export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
     <div className="farmhouse-layout">
       <header>
         <div className="farmhouse-container">
-          <h1>Smart Home</h1>
+          <Link to="/" className="farmhouse-logo">
+            <h1>Smart Home</h1>
+          </Link>
           <nav className="farmhouse-nav header-nav">
-            <Link to="/" className="farmhouse-nav-link">Home</Link>
-            <Link to="/input" className="farmhouse-nav-link">Input</Link>
             <Link to="/vizio-remote" className="farmhouse-nav-link">TV Remote</Link>
-            <Link to="/tv-pairing" className="farmhouse-nav-link">TV Setup</Link>
+            <Link to="/denon-avr-remote" className="farmhouse-nav-link">AVR Remote</Link>
           </nav>
         </div>
       </header>

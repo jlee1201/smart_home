@@ -28,6 +28,7 @@ const TV_STATUS_QUERY = gql`
       channel
       isMuted
       input
+      currentApp
     }
     tvConnectionStatus {
       connected
@@ -43,6 +44,7 @@ const TV_STATUS_SUBSCRIPTION = gql`
       channel
       isMuted
       input
+      currentApp
     }
   }
 `;
@@ -64,12 +66,31 @@ const ERROR_LOGS_SUBSCRIPTION = gql`
   }
 `;
 
+const APP_CHANGED_SUBSCRIPTION = gql`
+  subscription OnAppChanged {
+    appChanged {
+      currentApp
+      previousApp
+      timestamp
+      tvStatus {
+        isPoweredOn
+        volume
+        channel
+        isMuted
+        input
+        currentApp
+      }
+    }
+  }
+`;
+
 type TVStatus = {
   isPoweredOn: boolean;
   volume: number;
   channel: string;
   isMuted: boolean;
   input: string;
+  currentApp: string;
 };
 
 type ErrorLog = {
@@ -85,6 +106,7 @@ export function VizioRemotePage() {
   const [isMuted, setIsMuted] = useState(false);
   const [isPoweredOn, setIsPoweredOn] = useState(false);
   const [currentInput, setCurrentInput] = useState('HDMI_1');
+  const [currentApp, setCurrentApp] = useState('Unknown');
   
   // Subscribe to button debug information
   useSubscription(BUTTON_DEBUG_SUBSCRIPTION, {
@@ -111,6 +133,7 @@ export function VizioRemotePage() {
         setChannel(data.tvStatus.channel);
         setIsMuted(data.tvStatus.isMuted);
         setCurrentInput(data.tvStatus.input);
+        setCurrentApp(data.tvStatus.currentApp);
       }
     },
     onError: (error) => {
@@ -131,6 +154,7 @@ export function VizioRemotePage() {
         setChannel(status.channel);
         setIsMuted(status.isMuted);
         setCurrentInput(status.input);
+        setCurrentApp(status.currentApp);
       }
     },
     onError: (error) => {
@@ -159,6 +183,29 @@ export function VizioRemotePage() {
       console.error('Error log subscription error:', error);
     }
   });
+
+  // Subscribe to app changes for real-time updates
+  useSubscription(APP_CHANGED_SUBSCRIPTION, {
+    onData: ({ data }) => {
+      if (data.data?.appChanged) {
+        const { currentApp: newApp, previousApp, tvStatus } = data.data.appChanged;
+        console.log(`App changed from ${previousApp} to ${newApp}`);
+        
+        // Update all TV status including the new app
+        if (tvStatus) {
+          setIsPoweredOn(tvStatus.isPoweredOn);
+          setVolume(tvStatus.volume);
+          setChannel(tvStatus.channel);
+          setIsMuted(tvStatus.isMuted);
+          setCurrentInput(tvStatus.input);
+          setCurrentApp(tvStatus.currentApp);
+        }
+      }
+    },
+    onError: (error) => {
+      console.error('App change subscription error:', error);
+    }
+  });
   
   // Use effect to update state from subscription
   useEffect(() => {
@@ -169,6 +216,7 @@ export function VizioRemotePage() {
       setChannel(status.channel);
       setIsMuted(status.isMuted);
       setCurrentInput(status.input);
+      setCurrentApp(status.currentApp);
     }
   }, [subscriptionData]);
   
@@ -286,6 +334,9 @@ export function VizioRemotePage() {
               <div><strong>Input:</strong> {currentInput.replace('_', ' ')}</div>
               <div><strong>Volume:</strong> {volume}% {isMuted ? '(Muted)' : ''}</div>
               {channel && <div><strong>Channel:</strong> {channel}</div>}
+              {currentInput === 'SMARTCAST' && currentApp && currentApp !== 'Unknown' && (
+                <div><strong>App:</strong> {currentApp}</div>
+              )}
             </div>
           </div>
           
