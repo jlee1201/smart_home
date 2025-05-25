@@ -94,6 +94,7 @@ VIZIO_DEVICE_NAME="Smart Home Remote"
 ### Third-Party Resources
 - **Vizio SmartCast API Documentation**: This project's TV control functionality is based on the [Vizio SmartCast API documentation](https://github.com/exiva/Vizio_SmartCast_API).
 - **vizio-smart-cast Library**: Implementation references from [heathbar/vizio-smart-cast](https://github.com/heathbar/vizio-smart-cast) JavaScript library.
+- **Denon AVR Protocol Documentation**: A comprehensive reference for the Denon network protocol is available in the [docs/denon-protocol.pdf](docs/denon-protocol.pdf) file.
 
 ### Supported Vizio TV Apps
 The application supports launching the following apps on compatible Vizio SmartCast TVs:
