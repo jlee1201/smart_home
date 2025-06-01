@@ -24,7 +24,7 @@
       "name": "Auto-Reload Configuration",
       "description": "The project uses nodemon for server auto-restart and Vite with HMR for client-side hot reloading.",
       "pattern": "packages/server/src/.*\\.(ts|js)$|packages/client/src/.*\\.(ts|tsx|js|jsx)$",
-      "prompt": "This project is configured with automatic reloading:\n\n1. Server-side: Changes to server files trigger automatic restart via nodemon\n2. Client-side: Changes to client files trigger hot module replacement via Vite HMR\n\nNo manual restart is needed when making changes to either codebase.",
+      "prompt": "This project is configured with automatic reloading:\n\n1. Server-side: Changes to server files trigger automatic restart via nodemon\n2. Client-side: Changes to client files trigger hot module replacement via Vite HMR\n\nDo not manually restart after making changes to either codebase - just pausing a few seconds to allow for automatic reload is needed.",
       "agent": {
         "action": "inform_auto_reload",
         "auto": true

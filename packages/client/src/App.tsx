@@ -3,6 +3,7 @@ import { HomePage } from '@/pages/HomePage';
 import { VizioRemotePage } from '@/pages/VizioRemotePage';
 import { TVPairingPage } from '@/pages/TVPairingPage';
 import { DenonAvrRemotePage } from '@/pages/DenonAvrRemotePage';
+import { JohnsRemotePage } from '@/pages/JohnsRemotePage';
 import { Layout } from '@design-system';
 import { ErrorLog } from '@/components/ErrorLog';
 
@@ -17,6 +18,7 @@ export function App() {
         <Route path="/vizio-remote" element={<VizioRemotePage />} />
         <Route path="/tv-pairing" element={<TVPairingPage />} />
         <Route path="/denon-avr-remote" element={<DenonAvrRemotePage />} />
+        <Route path="/johns-remote" element={<JohnsRemotePage />} />
       </Routes>
       
       {/* Error Log component */}

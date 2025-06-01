@@ -1,6 +1,7 @@
 import { VizioAPI, VIZIO_COMMANDS, createVizioAPIFromEnv, createVizioAPIFromDB } from '../utils/vizioApi.js';
 import { logger } from '../utils/logger.js';
 import { tvSettingsService } from './tvSettingsService.js';
+import { TV_STATUS_CHANNEL } from '../resolvers.js';
 
 export type TVStatus = {
   isPoweredOn: boolean;
@@ -123,14 +124,14 @@ class TVService {
       clearInterval(this.statusPollingInterval);
     }
     
-    // Poll every 10 seconds
+    // Poll every 5 seconds (reduced from 10 seconds for better responsiveness)
     this.statusPollingInterval = setInterval(async () => {
       try {
         await this.refreshStatus();
       } catch (error) {
         logger.error('Failed to poll TV status', { error });
       }
-    }, 10000);
+    }, 5000);
   }
   
   /**
@@ -266,6 +267,9 @@ class TVService {
     }
     
     try {
+      // Store previous status for change detection
+      const prevStatus = { ...this.status };
+
       // First try to get the power state
       try {
         const isPoweredOn = await this.vizioApi.getPowerState();
@@ -374,7 +378,17 @@ class TVService {
         }
       }
       
-      logger.debug('TV status refreshed', { status: this.status });
+      // Check for status changes and publish if any occurred
+      const hasChanges = JSON.stringify(prevStatus) !== JSON.stringify(this.status);
+      if (hasChanges) {
+        logger.info('TV status changed during refresh', { 
+          previous: prevStatus,
+          current: this.status
+        });
+        this.publishStatusChange();
+      } else {
+        logger.debug('TV status refreshed (no changes)', { status: this.status });
+      }
     } catch (error: any) {
       logger.warn('Error refreshing TV status', { error: error?.message || 'Empty error' });
       this.checkForAuthError(error);
@@ -473,6 +487,23 @@ class TVService {
       }
     } catch (error) {
       logger.debug('Failed to emit app change event', { error });
+    }
+  }
+
+  /**
+   * Publish general TV status changes to GraphQL subscriptions
+   */
+  private publishStatusChange(): void {
+    try {
+      const pubsub = (global as any).pubsub;
+      if (pubsub) {
+        pubsub.publish(TV_STATUS_CHANNEL, { 
+          tvStatusChanged: this.status 
+        });
+        logger.debug('Published TV status change to GraphQL subscriptions', { status: this.status });
+      }
+    } catch (error) {
+      logger.debug('Failed to publish TV status change', { error });
     }
   }
   

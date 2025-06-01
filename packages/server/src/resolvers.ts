@@ -101,6 +101,7 @@ type Resolvers = {
     tvConnectionStatus: () => { connected: boolean };
     denonAvrStatus: () => any;
     denonAvrConnectionStatus: () => { connected: boolean };
+    denonAvrReachable: () => boolean;
     errorLogs: () => { id: string; timestamp: number; message: string; details?: string }[];
   };
   Mutation: {
@@ -127,6 +128,11 @@ type Resolvers = {
     resetTVConnection: () => Promise<boolean>;
     cancelTVPairing: () => Promise<boolean>;
     clearErrorLogs: (
+      parent: any,
+      args: any,
+      context: ResolverContext
+    ) => Promise<boolean>;
+    syncDevices: (
       parent: any,
       args: any,
       context: ResolverContext
@@ -196,6 +202,7 @@ export const resolvers: Resolvers = {
     denonAvrConnectionStatus: () => ({
       connected: denonAvrService.isConnectedToAVR()
     }),
+    denonAvrReachable: () => denonAvrService.isReachable(),
     errorLogs: () => errorLogs,
   },
   Mutation: {
@@ -372,23 +379,95 @@ export const resolvers: Resolvers = {
         });
       }
     },
-    clearErrorLogs: async (_, __, { pubsub }) => {
+    clearErrorLogs: async (_, args, { pubsub }) => {
       try {
-        // Clear the error logs array
-        errorLogs.length = 0;
-        
-        // Publish the empty array to subscribers
+        errorLogs.length = 0; // Clear the array
         await pubsub.publish(ERROR_LOG_CHANNEL, { errorLogChanged: errorLogs });
+        return true;
+      } catch (error) {
+        logger.error('Error clearing error logs', { error });
+        return false;
+      }
+    },
+    syncDevices: async (_, args, { pubsub }) => {
+      try {
+        logger.info('Starting "All On" operation for John\'s Remote');
+        
+        // Get current status of both devices
+        const tvStatus = tvService.getStatus();
+        const avrStatus = denonAvrService.getStatus();
+        
+        let needsAction = false;
+        
+        // Step 1: Power on TV if not already on
+        if (!tvStatus.isPoweredOn) {
+          logger.info('Powering on TV');
+          const tvPowerSuccess = await tvService.sendCommand('POWER');
+          if (!tvPowerSuccess) {
+            logger.error('Failed to power on TV during All On operation');
+            await addErrorToLog(pubsub, 'All On failed: Could not power on TV', '');
+            return false;
+          }
+          needsAction = true;
+          // Wait a moment for TV to power on
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+        
+        // Step 2: Power on Denon AVR if not already on
+        if (!avrStatus.isPoweredOn) {
+          logger.info('Powering on Denon AVR');
+          const avrPowerSuccess = await denonAvrService.sendCommand('POWER_ON');
+          if (!avrPowerSuccess) {
+            logger.error('Failed to power on Denon AVR during All On operation');
+            await addErrorToLog(pubsub, 'All On failed: Could not power on Denon AVR', '');
+            return false;
+          }
+          needsAction = true;
+          // Wait a moment for the AVR to power on
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+        
+        // Step 3: Set Denon AVR to TV input if not already set
+        if (avrStatus.input !== 'TV') {
+          logger.info('Setting Denon AVR to TV input');
+          const inputSuccess = await denonAvrService.sendCommand('INPUT_TV');
+          if (!inputSuccess) {
+            logger.error('Failed to set Denon AVR to TV input during All On operation');
+            await addErrorToLog(pubsub, 'All On failed: Could not set Denon AVR to TV input', '');
+            return false;
+          }
+          needsAction = true;
+        }
+        
+        // Step 4: Set volume to 55 if AVR is powered on
+        if (avrStatus.isPoweredOn || needsAction) {
+          logger.info('Setting Denon AVR volume to 55');
+          const volumeSuccess = await denonAvrService.sendCommand('SET_VOLUME', '55');
+          if (!volumeSuccess) {
+            logger.error('Failed to set Denon AVR volume during All On operation');
+            await addErrorToLog(pubsub, 'All On failed: Could not set Denon AVR volume to 55', '');
+            return false;
+          }
+          needsAction = true;
+        }
+        
+        if (needsAction) {
+          logger.info('All On operation completed successfully');
+        } else {
+          logger.info('All On operation - no action needed, devices already in desired state');
+        }
+        
+        // Publish updated statuses
+        const updatedTvStatus = tvService.getStatus();
+        const updatedAvrStatus = denonAvrService.getStatus();
+        await pubsub.publish(TV_STATUS_CHANNEL, { tvStatusChanged: updatedTvStatus });
+        await pubsub.publish(DENON_AVR_STATUS_CHANNEL, { denonAvrStatusChanged: updatedAvrStatus });
         
         return true;
       } catch (error) {
-        logger.error('Error in clearErrorLogs mutation', { error });
-        if (error instanceof GraphQLError) {
-          throw error;
-        }
-        throw new GraphQLError('Internal server error', {
-          extensions: { code: ErrorCode.INTERNAL_ERROR },
-        });
+        logger.error('Error in syncDevices (All On) mutation', { error });
+        await addErrorToLog(pubsub, 'All On failed: Internal error occurred', JSON.stringify(error));
+        return false;
       }
     },
   },

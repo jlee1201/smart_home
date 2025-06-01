@@ -38,7 +38,19 @@ let currentPort = config.server.port;
 (global as any).pubsub = pubsub;
 
 async function stopServer() {
-  // Close HTTP server first
+  // Clean up services first
+  try {
+    const { denonAvrService } = await import('./services/denonAvrService.js');
+    const { tvService } = await import('./services/tvService.js');
+    
+    logger.info('Cleaning up services');
+    denonAvrService.cleanup();
+    tvService.stopPolling();
+  } catch (error) {
+    logger.warn('Error cleaning up services', { error });
+  }
+
+  // Close HTTP server
   const closeHttpServer = new Promise<void>((resolve) => {
     if (httpServer) {
       logger.info('Closing HTTP server');

@@ -1,5 +1,6 @@
 import { logger } from './logger.js';
 import net from 'net';
+import { EventEmitter } from 'events';
 
 // Type definitions for Denon AVR API via Telnet
 export type DenonAVRConfig = {
@@ -16,6 +17,23 @@ export type DenonResponse = {
   data: string;
   error?: string;
 };
+
+// Event types for real-time status updates
+export interface DenonStatusEvents {
+  powerChanged: (isPoweredOn: boolean) => void;
+  volumeChanged: (volume: number) => void;
+  muteChanged: (isMuted: boolean) => void;
+  inputChanged: (input: string) => void;
+  soundModeChanged: (soundMode: string) => void;
+  connectionChanged: (connected: boolean) => void;
+  statusUpdate: (status: {
+    isPoweredOn: boolean;
+    volume: number;
+    isMuted: boolean;
+    input: string;
+    soundMode: string;
+  }) => void;
+}
 
 // Common Denon AVR commands for AVR-X4500H
 export const DENON_COMMANDS = {
@@ -132,23 +150,313 @@ export const DENON_COMMANDS = {
 
 /**
  * DenonTelnetAPI - A class to interact with Denon AVR-X4500H via Telnet
+ * Now supports both command/response and real-time event monitoring
  */
-export class DenonTelnetAPI {
+export class DenonTelnetAPI extends EventEmitter {
   private ip: string;
   private port: number;
-  private deviceName: string;
   private connectionTimeout: number;
   private commandTimeout: number;
   private client: net.Socket | null = null;
   
+  // Real-time monitoring
+  private monitorClient: net.Socket | null = null;
+  private isMonitoring: boolean = false;
+  private reconnectAttempts: number = 0;
+  private maxReconnectAttempts: number = 5;
+  private reconnectDelay: number = 5000; // 5 seconds
+  private reconnectTimer: NodeJS.Timeout | null = null;
+  
+  // Current status cache for change detection
+  private lastKnownStatus = {
+    isPoweredOn: false,
+    volume: 0,
+    isMuted: false,
+    input: '',
+    soundMode: ''
+  };
+
   constructor(config: DenonAVRConfig) {
+    super();
     this.ip = config.ip;
     this.port = config.port || 23; // Default Telnet port
-    this.deviceName = config.deviceName || 'SmartHome Controller';
     this.connectionTimeout = config.connectionTimeout || 5000; // 5 seconds
     this.commandTimeout = config.commandTimeout || 3000; // 3 seconds
   }
-  
+
+  /**
+   * Start real-time monitoring of AVR status changes
+   */
+  startMonitoring(): void {
+    if (this.isMonitoring) {
+      logger.debug('Denon AVR monitoring already active');
+      return;
+    }
+
+    logger.info('Starting Denon AVR real-time monitoring');
+    this.isMonitoring = true;
+    this.reconnectAttempts = 0;
+    this.connectMonitor();
+  }
+
+  /**
+   * Stop real-time monitoring
+   */
+  stopMonitoring(): void {
+    if (!this.isMonitoring) {
+      return;
+    }
+
+    logger.info('Stopping Denon AVR real-time monitoring');
+    this.isMonitoring = false;
+    
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+
+    if (this.monitorClient) {
+      this.monitorClient.removeAllListeners();
+      this.monitorClient.destroy();
+      this.monitorClient = null;
+    }
+
+    this.emit('connectionChanged', false);
+  }
+
+  /**
+   * Connect the monitoring client for real-time updates
+   */
+  private connectMonitor(): void {
+    if (!this.isMonitoring) {
+      return;
+    }
+
+    if (this.monitorClient) {
+      this.monitorClient.removeAllListeners();
+      this.monitorClient.destroy();
+    }
+
+    this.monitorClient = new net.Socket();
+    this.monitorClient.setKeepAlive(true, 30000); // Keep connection alive
+
+    // Set up event handlers
+    this.monitorClient.on('connect', () => {
+      logger.info('Denon AVR monitoring connection established');
+      this.reconnectAttempts = 0;
+      this.emit('connectionChanged', true);
+      
+      // Request initial status to populate cache
+      this.requestInitialStatus();
+    });
+
+    this.monitorClient.on('data', (data) => {
+      this.handleMonitorData(data.toString());
+    });
+
+    this.monitorClient.on('error', (error) => {
+      logger.error('Denon AVR monitoring connection error', { error: error.message });
+      this.emit('connectionChanged', false);
+      this.scheduleReconnect();
+    });
+
+    this.monitorClient.on('close', () => {
+      logger.warn('Denon AVR monitoring connection closed');
+      this.emit('connectionChanged', false);
+      if (this.isMonitoring) {
+        this.scheduleReconnect();
+      }
+    });
+
+    this.monitorClient.on('timeout', () => {
+      logger.warn('Denon AVR monitoring connection timeout');
+      this.monitorClient?.destroy();
+    });
+
+    // Connect with timeout
+    const connectTimeout = setTimeout(() => {
+      if (this.monitorClient && !this.monitorClient.destroyed) {
+        logger.error('Denon AVR monitoring connection timeout');
+        this.monitorClient.destroy();
+      }
+    }, this.connectionTimeout);
+
+    this.monitorClient.connect(this.port, this.ip, () => {
+      clearTimeout(connectTimeout);
+    });
+  }
+
+  /**
+   * Schedule a reconnection attempt
+   */
+  private scheduleReconnect(): void {
+    if (!this.isMonitoring || this.reconnectAttempts >= this.maxReconnectAttempts) {
+      if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+        logger.error(`Denon AVR monitoring: Max reconnection attempts (${this.maxReconnectAttempts}) reached`);
+        this.stopMonitoring();
+      }
+      return;
+    }
+
+    this.reconnectAttempts++;
+    const delay = this.reconnectDelay * this.reconnectAttempts; // Exponential backoff
+
+    logger.info(`Denon AVR monitoring: Scheduling reconnection attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${delay}ms`);
+
+    this.reconnectTimer = setTimeout(() => {
+      this.connectMonitor();
+    }, delay);
+  }
+
+  /**
+   * Request initial status when monitoring connection is established
+   */
+  private requestInitialStatus(): void {
+    if (!this.monitorClient || this.monitorClient.destroyed) {
+      return;
+    }
+
+    // Send status queries to get initial state
+    const queries = [
+      DENON_COMMANDS.POWER_STATUS,
+      DENON_COMMANDS.VOLUME_STATUS,
+      DENON_COMMANDS.MUTE_STATUS,
+      DENON_COMMANDS.INPUT_STATUS,
+      DENON_COMMANDS.SOUND_MODE_STATUS
+    ];
+
+    queries.forEach((query, index) => {
+      setTimeout(() => {
+        if (this.monitorClient && !this.monitorClient.destroyed) {
+          this.monitorClient.write(`${query}\r`);
+        }
+      }, index * 100); // Stagger requests to avoid overwhelming the device
+    });
+  }
+
+  /**
+   * Handle incoming data from the monitoring connection
+   */
+  private handleMonitorData(data: string): void {
+    const lines = data.split(/[\r\n]+/).filter(line => line.trim().length > 0);
+    
+    for (const line of lines) {
+      this.parseStatusUpdate(line.trim());
+    }
+  }
+
+  /**
+   * Parse a status update line and emit appropriate events
+   */
+  private parseStatusUpdate(line: string): void {
+    logger.debug('Denon AVR status update received', { line });
+
+    let hasChanges = false;
+    const newStatus = { ...this.lastKnownStatus };
+
+    // Parse power status
+    if (line === 'PWON') {
+      if (!this.lastKnownStatus.isPoweredOn) {
+        newStatus.isPoweredOn = true;
+        hasChanges = true;
+        this.emit('powerChanged', true);
+        logger.info('Denon AVR powered ON (real-time)');
+      }
+    } else if (line === 'PWSTANDBY') {
+      if (this.lastKnownStatus.isPoweredOn) {
+        newStatus.isPoweredOn = false;
+        hasChanges = true;
+        this.emit('powerChanged', false);
+        logger.info('Denon AVR powered OFF (real-time)');
+      }
+    }
+
+    // Parse volume
+    const volumeMatch = line.match(/^MV(\d+)$/);
+    if (volumeMatch) {
+      const volumeStr = volumeMatch[1];
+      let rawVolume: number;
+      
+      if (volumeStr.length >= 3) {
+        // Format like MV505 = 50.5
+        rawVolume = parseInt(volumeStr.slice(0, -1)) + (parseInt(volumeStr.slice(-1)) / 10);
+      } else {
+        // Format like MV50 = 50
+        rawVolume = parseInt(volumeStr);
+      }
+
+      if (rawVolume !== this.lastKnownStatus.volume) {
+        newStatus.volume = rawVolume;
+        hasChanges = true;
+        this.emit('volumeChanged', rawVolume);
+        logger.info('Denon AVR volume changed (real-time)', { 
+          volume: rawVolume 
+        });
+      }
+    }
+
+    // Parse mute status
+    if (line === 'MUON') {
+      if (!this.lastKnownStatus.isMuted) {
+        newStatus.isMuted = true;
+        hasChanges = true;
+        this.emit('muteChanged', true);
+        logger.info('Denon AVR muted (real-time)');
+      }
+    } else if (line === 'MUOFF') {
+      if (this.lastKnownStatus.isMuted) {
+        newStatus.isMuted = false;
+        hasChanges = true;
+        this.emit('muteChanged', false);
+        logger.info('Denon AVR unmuted (real-time)');
+      }
+    }
+
+    // Parse input
+    const inputMatch = line.match(/^SI(.+)$/);
+    if (inputMatch) {
+      const input = inputMatch[1];
+      if (input !== this.lastKnownStatus.input) {
+        newStatus.input = input;
+        hasChanges = true;
+        this.emit('inputChanged', input);
+        logger.info('Denon AVR input changed (real-time)', { input });
+      }
+    }
+
+    // Parse sound mode
+    const soundModeMatch = line.match(/^MS(.+)$/);
+    if (soundModeMatch) {
+      const soundMode = soundModeMatch[1];
+      if (soundMode !== this.lastKnownStatus.soundMode) {
+        newStatus.soundMode = soundMode;
+        hasChanges = true;
+        this.emit('soundModeChanged', soundMode);
+        logger.info('Denon AVR sound mode changed (real-time)', { soundMode });
+      }
+    }
+
+    // If any changes occurred, update cache and emit general status update
+    if (hasChanges) {
+      this.lastKnownStatus = newStatus;
+      this.emit('statusUpdate', newStatus);
+    }
+  }
+
+  /**
+   * Get the current cached status (from real-time monitoring)
+   */
+  getCachedStatus() {
+    return { ...this.lastKnownStatus };
+  }
+
+  /**
+   * Check if monitoring is active
+   */
+  isMonitoringActive(): boolean {
+    return this.isMonitoring && this.monitorClient !== null && !this.monitorClient.destroyed;
+  }
+
   /**
    * Send a command to the AVR via Telnet with automatic retry
    */
@@ -460,11 +768,10 @@ export class DenonTelnetAPI {
             
             logger.debug('Denon AVR volume parsed successfully', {
               volumeValue,
-              normalized: normalizedVolume,
-              percentage: Math.round((normalizedVolume / 99) * 100)
+              normalized: normalizedVolume
             });
             
-            return Math.round((normalizedVolume / 99) * 100);
+            return normalizedVolume;
           }
           
           // Method 2: Use regex to find MV followed by digits anywhere in response
@@ -479,11 +786,10 @@ export class DenonTelnetAPI {
             
             logger.debug('Denon AVR volume parsed using regex', {
               volumeValue,
-              normalized: normalizedVolume,
-              percentage: Math.round((normalizedVolume / 99) * 100)
+              normalized: normalizedVolume
             });
             
-            return Math.round((normalizedVolume / 99) * 100);
+            return normalizedVolume;
           }
         }
         
@@ -501,15 +807,24 @@ export class DenonTelnetAPI {
   }
   
   /**
-   * Set volume level (0-100)
+   * Set volume level (0-99, with decimals like 50.5)
    */
   async setVolume(level: number): Promise<boolean> {
     try {
-      // Convert percentage (0-100) to Denon volume (0-99)
-      const volume = Math.round((Math.min(100, Math.max(0, level)) / 100) * 99);
+      // Clamp to valid Denon range (0-99)
+      const volume = Math.min(99, Math.max(0, level));
       
-      // Format as two digits
-      const volumeCommand = `${DENON_COMMANDS.VOLUME_SET_PREFIX}${volume.toString().padStart(2, '0')}`;
+      // Format for Denon command
+      let volumeCommand: string;
+      if (volume % 1 === 0) {
+        // Whole number: format as two digits (e.g., 50 -> MV50)
+        volumeCommand = `${DENON_COMMANDS.VOLUME_SET_PREFIX}${Math.round(volume).toString().padStart(2, '0')}`;
+      } else {
+        // Decimal: format as three digits (e.g., 50.5 -> MV505)
+        const wholePart = Math.floor(volume);
+        const decimalPart = Math.round((volume - wholePart) * 10);
+        volumeCommand = `${DENON_COMMANDS.VOLUME_SET_PREFIX}${wholePart.toString().padStart(2, '0')}${decimalPart}`;
+      }
       
       const response = await this.sendCommand(volumeCommand);
       return response.success;
@@ -1013,15 +1328,15 @@ export class DenonTelnetAPI {
   
   /**
    * Control Zone 2 volume
-   * @param level Volume level (0-100)
+   * @param level Volume level (0-98, raw Denon value)
    */
   async setZone2Volume(level: number): Promise<boolean> {
     try {
-      // Convert percentage (0-100) to Denon volume (0-98)
-      const volume = Math.round((Math.min(100, Math.max(0, level)) / 100) * 98);
+      // Clamp to valid Denon Zone 2 range (0-98)
+      const volume = Math.min(98, Math.max(0, level));
       
       // Format as two digits
-      const volumeCommand = `${DENON_COMMANDS.ZONE2_VOLUME_SET_PREFIX}${volume.toString().padStart(2, '0')}`;
+      const volumeCommand = `${DENON_COMMANDS.ZONE2_VOLUME_SET_PREFIX}${Math.round(volume).toString().padStart(2, '0')}`;
       
       const response = await this.sendCommand(volumeCommand);
       return response.success;
@@ -1062,9 +1377,9 @@ export class DenonTelnetAPI {
     const result = {
       connected: false,
       powerState: false,
-      volumeData: { raw: '', parsed: null },
-      muteData: { raw: '', parsed: null },
-      inputData: { raw: '', parsed: null },
+      volumeData: { raw: '', parsed: null as number | null },
+      muteData: { raw: '', parsed: null as boolean | null },
+      inputData: { raw: '', parsed: null as string | null },
       issues
     };
     
@@ -1139,7 +1454,7 @@ export class DenonTelnetAPI {
               ? Math.round(volumeValue / 10) 
               : volumeValue;
               
-            result.volumeData.parsed = Math.round((normalizedVolume / 99) * 100);
+            result.volumeData.parsed = normalizedVolume;
           } else {
             issues.push('Failed to parse volume value from response');
           }

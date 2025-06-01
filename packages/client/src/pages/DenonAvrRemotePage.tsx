@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { gql, useMutation, useQuery, useSubscription } from '@apollo/client';
-import { Button, Card, Input } from '@design-system';
+import { Button, Card, Input, ToggleButton } from '@design-system';
 import { FaPowerOff, FaVolumeUp, FaVolumeDown, FaVolumeMute, FaVolumeOff, FaExchangeAlt, 
          FaMusic, FaFilm, FaGamepad, FaCompactDisc, FaMicrophone, FaTv, FaSatelliteDish,
          FaBluetooth, FaNetworkWired, FaArrowUp, FaArrowDown, FaArrowLeft, FaArrowRight,
@@ -22,6 +22,7 @@ const DENON_AVR_STATUS_QUERY = gql`
     denonAvrConnectionStatus {
       connected
     }
+    denonAvrReachable
   }
 `;
 
@@ -96,18 +97,19 @@ const AVR_X4500H_SOUND_MODES = [
 ];
 
 export function DenonAvrRemotePage() {
-  const [volume, setVolume] = useState(50);
+  const [volume, setVolume] = useState(50.0);
   const [isMuted, setIsMuted] = useState(false);
   const [isPoweredOn, setIsPoweredOn] = useState(false);
   const [currentInput, setCurrentInput] = useState('CBL/SAT');
   const [soundMode, setSoundMode] = useState('STEREO');
-  const [customVolume, setCustomVolume] = useState('');
+
   const [errorMessage, setErrorMessage] = useState<string>('');
   
-  // Query initial AVR status
+  // Query initial AVR status (no polling needed since we have real-time subscriptions)
   const { loading: queryLoading, data: queryData, error: queryError, refetch: refetchStatus } = useQuery<{ 
     denonAvrStatus: DenonAVRStatus; 
-    denonAvrConnectionStatus: { connected: boolean } 
+    denonAvrConnectionStatus: { connected: boolean }; 
+    denonAvrReachable: boolean; 
   }>(DENON_AVR_STATUS_QUERY, {
     onCompleted: (data) => {
       if (data.denonAvrStatus) {
@@ -122,9 +124,8 @@ export function DenonAvrRemotePage() {
       console.error('Error fetching Denon AVR status:', error);
       setErrorMessage('Error communicating with Denon AVR-X4500H. Will attempt to reconnect...');
     },
-    // Poll every 5 seconds to detect connection changes
-    pollInterval: 5000,
-    fetchPolicy: 'network-only' // Don't use cache for status updates
+    // No polling needed - real-time updates come via subscriptions
+    fetchPolicy: 'cache-and-network' // Use cache for faster initial load
   });
   
   // Subscribe to AVR status changes
@@ -219,18 +220,10 @@ export function DenonAvrRemotePage() {
     }
   };
 
-  const handleSetCustomVolume = () => {
-    const vol = parseInt(customVolume, 10);
-    if (!isNaN(vol) && vol >= 0 && vol <= 100) {
-      handleCommand('SET_VOLUME', customVolume);
-      setCustomVolume('');
-    }
-  };
-
-  const isAVRConnected = queryData?.denonAvrConnectionStatus?.connected === true;
+  const isAVRReachable = queryData?.denonAvrReachable === true;
   const loading = queryLoading || commandLoading;
   
-  if (!isAVRConnected) {
+  if (!isAVRReachable) {
     return (
       <div>
         <h2>Denon AVR-X4500H Remote Control</h2>
@@ -262,6 +255,8 @@ export function DenonAvrRemotePage() {
         </div>
       )}
       
+
+      
       <div className="flex justify-center mt-6">
         <div className="relative w-full max-w-md bg-slate-900 rounded-3xl px-6 pt-6 pb-10 shadow-xl">
           {/* Denon logo at top */}
@@ -277,77 +272,87 @@ export function DenonAvrRemotePage() {
             </div>
             <div className="text-sm">
               <div><strong>Input:</strong> {currentInput}</div>
-              <div><strong>Volume:</strong> {volume}% {isMuted ? '(Muted)' : ''}</div>
+              <div><strong>Volume:</strong> {volume} {isMuted ? '(Muted)' : ''}</div>
               <div><strong>Sound Mode:</strong> {soundMode}</div>
             </div>
           </div>
           
           {/* Power & Mute Row */}
           <div className="flex justify-between mb-6">
-            <Button 
-              className={`w-14 h-14 rounded-full ${isPoweredOn ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'} text-white font-bold shadow-md flex items-center justify-center`}
+            <ToggleButton
+              variant="power"
+              isActive={isPoweredOn}
               onClick={() => handleCommand(isPoweredOn ? 'POWER_OFF' : 'POWER_ON')}
               disabled={loading}
               title={isPoweredOn ? 'Turn AVR Off' : 'Turn AVR On'}
             >
               <FaPowerOff />
-            </Button>
+            </ToggleButton>
             
-            <Button 
-              className="w-14 h-14 rounded-full bg-slate-700 hover:bg-slate-600 text-white shadow-md flex items-center justify-center"
+            <ToggleButton
+              variant="mute"
+              isActive={isMuted}
               onClick={() => handleCommand('MUTE_TOGGLE')}
               disabled={loading || !isPoweredOn}
               title={isMuted ? "Unmute Sound" : "Mute Sound"}
             >
               {isMuted ? <FaVolumeOff /> : <FaVolumeMute />}
-            </Button>
+            </ToggleButton>
           </div>
           
-          {/* Volume Control with Slider */}
-          <div className="mb-6">
-            <div className="text-white mb-2 font-medium">Volume Control</div>
-            <div className="flex items-center mb-2">
-              <span className="text-white text-sm mr-2">Volume: {volume}%</span>
-              {isMuted && <span className="ml-2 text-red-400 text-sm">(Muted)</span>}
+          {/* Volume Control with Bar Graph Style */}
+          <div className="mb-6 w-full">
+            <div className="text-white mb-3 font-medium text-center">Volume Control</div>
+            
+            {/* Volume level display */}
+            <div className="text-center text-white text-lg font-bold mb-3">
+              {volume}{isMuted ? ' (Muted)' : ''}
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-2.5 mb-4">
-              <div className="bg-blue-600 h-2.5 rounded-full" style={{ width: `${volume}%` }}></div>
-            </div>
-            <div className="flex gap-2">
+            
+            {/* Horizontal layout: Vol Down | Bar Graph | Vol Up */}
+            <div className="flex items-end justify-between gap-4 w-full">
+              {/* Volume Down Button */}
               <Button 
-                className="flex-1 h-10 rounded-lg bg-slate-700 hover:bg-slate-600 text-white shadow-md flex items-center justify-center"
+                className="w-14 h-14 rounded-lg bg-slate-700 hover:bg-slate-600 text-white shadow-md flex items-center justify-center flex-shrink-0"
                 onClick={() => handleCommand('VOLUME_DOWN')}
                 disabled={loading || !isPoweredOn}
               >
-                <FaVolumeDown />
+                <FaVolumeDown className="text-xl" />
               </Button>
               
+              {/* Bar graph style volume visualization */}
+              <div className="flex items-end justify-center gap-1 h-10 flex-1">
+                {Array.from({ length: 20 }, (_, i) => {
+                  const barLevel = (i + 1) * 5; // Each bar represents 5 volume levels (0-100)
+                  const isActive = volume >= barLevel;
+                  const barHeight = `${10 + (i * 1.5)}px`; // Reduced height progression (50% of original)
+                  
+                  return (
+                    <div
+                      key={i}
+                      className="transition-all duration-200"
+                      style={{
+                        width: '8px',
+                        height: barHeight,
+                        backgroundColor: isActive 
+                          ? (isMuted ? '#BB8274' : '#6A869C') // terracotta when muted, blue when normal
+                          : '#4F4F4F', // farmhouse-charcoal for inactive bars
+                        opacity: isActive ? (isMuted ? 0.7 : 1) : 0.3,
+                        borderRadius: '2px',
+                        boxShadow: isActive && !isMuted ? '0 0 4px rgba(106, 134, 156, 0.4)' : 'none'
+                      }}
+                    />
+                  );
+                })}
+              </div>
+              
+              {/* Volume Up Button */}
               <Button 
-                className="flex-1 h-10 rounded-lg bg-slate-700 hover:bg-slate-600 text-white shadow-md flex items-center justify-center"
+                className="w-14 h-14 rounded-lg bg-slate-700 hover:bg-slate-600 text-white shadow-md flex items-center justify-center flex-shrink-0"
                 onClick={() => handleCommand('VOLUME_UP')}
                 disabled={loading || !isPoweredOn}
               >
-                <FaVolumeUp />
-              </Button>
-            </div>
-            
-            <div className="flex items-center gap-2 mt-4">
-              <Input
-                type="number"
-                min="0"
-                max="100"
-                value={customVolume}
-                onChange={(e) => setCustomVolume(e.target.value)}
-                placeholder="Set volume (0-100)"
-                disabled={loading || !isPoweredOn}
-                className="flex-1"
-              />
-              <Button 
-                className="h-10 px-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow-md"
-                onClick={handleSetCustomVolume} 
-                disabled={loading || !isPoweredOn || !customVolume}
-              >
-                Set
+                <FaVolumeUp className="text-xl" />
               </Button>
             </div>
           </div>
@@ -357,16 +362,18 @@ export function DenonAvrRemotePage() {
             <div className="text-white mb-2 font-medium">Input Selection</div>
             <div className="grid grid-cols-3 gap-2">
               {AVR_X4500H_INPUTS.map(input => (
-                <Button 
+                <ToggleButton
                   key={input.id}
-                  className={`h-12 rounded-lg ${currentInput === input.id ? 'bg-blue-600 hover:bg-blue-700' : 'bg-slate-700 hover:bg-slate-600'} text-white shadow-md flex flex-col items-center justify-center text-xs`}
+                  variant="input"
+                  isActive={currentInput === input.id}
                   onClick={() => handleCommand(`INPUT_${input.id.replace('/', '_')}`)}
                   disabled={loading || !isPoweredOn}
                   title={input.name}
+                  className="h-12 flex-col text-xs"
                 >
                   <span className="text-lg mb-1">{input.icon}</span>
                   <span className="truncate">{input.name}</span>
-                </Button>
+                </ToggleButton>
               ))}
             </div>
           </div>
@@ -376,16 +383,18 @@ export function DenonAvrRemotePage() {
             <div className="text-white mb-2 font-medium">Sound Mode</div>
             <div className="grid grid-cols-3 gap-2">
               {AVR_X4500H_SOUND_MODES.map(mode => (
-                <Button 
+                <ToggleButton
                   key={mode.id}
-                  className={`h-12 rounded-lg ${soundMode === mode.id ? 'bg-blue-600 hover:bg-blue-700' : 'bg-slate-700 hover:bg-slate-600'} text-white shadow-md flex flex-col items-center justify-center text-xs`}
+                  variant="sound-mode"
+                  isActive={soundMode === mode.id}
                   onClick={() => handleCommand(`SOUND_${mode.id}`)}
                   disabled={loading || !isPoweredOn}
                   title={mode.name}
+                  className="h-12 flex-col text-xs"
                 >
                   <span className="text-lg mb-1">{mode.icon}</span>
                   <span>{mode.name}</span>
-                </Button>
+                </ToggleButton>
               ))}
             </div>
           </div>

@@ -1,23 +1,40 @@
 # Smart Home - Vizio TV Control
 
-A web-based remote control application for Vizio SmartCast TVs that provides complete control over your television from any device on your network.
+A web-based remote control application for Vizio SmartCast TVs and Denon AV receivers that provides complete control over your entertainment system from any device on your network.
 
 ## Features
 
 - **TV Control**
-  - Power on/off
-  - Volume adjustment
+  - Power on/off with real-time status indication
+  - Volume adjustment with visual bar graph display
   - Channel navigation
-  - Input selection
+  - Input selection with active input highlighting
   - Media playback controls (play, pause, stop, etc.)
-  - Smart app launching
+  - Smart app launching with current app indication
   - Directional navigation
+  - Real-time mute status visualization
 
 - **Denon AVR Control**
-  - Power on/off
-  - Volume adjustment
-  - Input selection
-  - Sound mode control
+  - Power on/off with real-time status indication
+  - Volume adjustment (raw Denon values 0-99, supports decimals like 62.5) with visual bar graph
+  - Input selection with active input highlighting
+  - Sound mode control with active mode highlighting
+  - Real-time status monitoring via telnet with TCP reachability ping to distinguish network-down vs power-off
+  - HTTP fallback for POWER_ON command when telnet is unavailable
+  - Real-time mute status visualization
+
+- **John's Remote (Combined Control)**
+  - Unified remote combining TV controls with AVR volume
+  - TV power control and navigation
+  - Smart TV app shortcuts (Netflix, Prime Video, YouTube TV, Disney+) with identical styling to Vizio remote, arranged in space-optimized 2x2 grid layout using inline styles for reliable rendering
+  - AVR volume control replacing TV volume
+  - One-click "All On" button that:
+    - Powers on both TV and Denon AVR if not already on
+    - Sets AVR to TV input mode if not already set
+    - Sets AVR volume to 55
+    - Automatically disables when all devices are on and configured
+  - Combined status display showing both TV and AVR states
+  - All TV controls except volume and channel controls (navigation, apps, playback, inputs)
 
 - **Device Status Monitoring**: Real-time connection status for all connected devices
 - **Smart Home Integration**: Centralized control for multiple entertainment devices
@@ -83,13 +100,16 @@ DENON_AVR_PORT=23          # Default Denon telnet port
 
 4. Follow the on-screen instructions to complete pairing
 
+5. Access John's Remote at `http://localhost:3000/johns-remote` for combined TV and AVR control
+
 ## Tech Stack
 
 ### Frontend
 - **Framework**: React 18 with TypeScript
 - **Routing**: React Router v6
 - **API Client**: Apollo Client
-- **UI**: Custom components with React Icons
+- **UI**: Custom components with React Icons and ToggleButton design system
+- **Real-time UI**: Status-aware buttons with visual feedback for device states
 - **Build Tool**: Vite
 
 ### Backend
@@ -101,12 +121,42 @@ DENON_AVR_PORT=23          # Default Denon telnet port
 - **ORM**: Prisma
 - **Containerization**: Docker & Docker Compose
 - **TV Control**: Custom implementation of the Vizio SmartCast API
-- **AVR Control**: Custom implementation of the Denon telnet protocol
+- **AVR Control**: Custom implementation of the Denon telnet protocol with real-time monitoring
 
 ### Third-Party Resources
 - **Vizio SmartCast API Documentation**: This project's TV control functionality is based on the [Vizio SmartCast API documentation](https://github.com/exiva/Vizio_SmartCast_API).
 - **vizio-smart-cast Library**: Implementation references from [heathbar/vizio-smart-cast](https://github.com/heathbar/vizio-smart-cast) JavaScript library.
 - **Denon AVR Protocol Documentation**: A comprehensive reference for the Denon network protocol is available in the [docs/denon-protocol.pdf](docs/denon-protocol.pdf) file.
+
+### Real-Time Status Visualization
+
+Both the Vizio TV and Denon AVR remotes feature comprehensive real-time status visualization:
+
+#### Visual Feedback System
+- **Power Status**: Green highlighting when devices are powered on
+- **Mute Status**: Terracotta highlighting when audio is muted
+- **Active Inputs**: Blue highlighting for currently selected inputs
+- **Active Apps**: Blue highlighting for currently running smart TV apps
+- **Volume Visualization**: Animated bar graph showing current volume levels
+  - Blue bars for normal volume
+  - Terracotta bars when muted
+  - Real-time updates as volume changes
+
+#### ToggleButton Design System
+The application uses a custom `ToggleButton` component with multiple variants:
+- `power`: For power on/off controls with farmhouse-green active state
+- `mute`: For mute controls with farmhouse-terracotta active state  
+- `input`: For input/app selection with farmhouse-blue active state
+- `sound-mode`: For sound mode selection with farmhouse-brown active state
+
+### Volume Control Formats
+
+The application uses different volume formats for different devices:
+
+- **Vizio TV**: Volume is represented as a percentage (0-100)
+- **Denon AVR**: Volume uses raw Denon values (0-99) with decimal precision support (e.g., 62.5)
+  - This provides more precise volume control matching the AVR's native format
+  - Real-time volume changes are detected and updated automatically via telnet monitoring
 
 ### Supported Vizio TV Apps
 The application supports launching the following apps on compatible Vizio SmartCast TVs:
@@ -148,6 +198,8 @@ The application follows a monorepo structure with two main packages:
 - **Apollo GraphQL Server**: Handles API requests and real-time subscriptions
 - **Vizio API Service**: Communicates with the Vizio SmartCast API
 - **Denon AVR Service**: Communicates with Denon AV receivers via telnet protocol
+- **John's Remote**: Combined control interface with "All On" functionality
+- **All On Mutation**: GraphQL mutation that intelligently powers on and configures multiple devices
 - **Prisma ORM**: Manages database operations and schema
 - **React Router**: Handles client-side routing
 - **Apollo Client**: Manages GraphQL state and caching on the frontend

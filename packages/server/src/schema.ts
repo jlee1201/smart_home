@@ -6,6 +6,7 @@ export const typeDefs = `#graphql
     tvConnectionStatus: TVConnectionStatus
     denonAvrStatus: DenonAVRStatus
     denonAvrConnectionStatus: DenonAVRConnectionStatus
+    denonAvrReachable: Boolean!
     errorLogs: [ErrorLog]
   }
 
@@ -34,7 +35,7 @@ export const typeDefs = `#graphql
 
   type DenonAVRStatus {
     isPoweredOn: Boolean
-    volume: Int
+    volume: Float
     isMuted: Boolean
     input: String
     soundMode: String
@@ -73,6 +74,7 @@ export const typeDefs = `#graphql
     cancelTVPairing: Boolean
     sendDenonAvrCommand(command: String!, value: String): Boolean
     clearErrorLogs: Boolean
+    syncDevices: Boolean
   }
 
   type Subscription {

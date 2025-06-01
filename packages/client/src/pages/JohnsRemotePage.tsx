@@ -1,26 +1,13 @@
 import { useState, useEffect } from 'react';
 import { gql, useMutation, useQuery, useSubscription } from '@apollo/client';
-import { Button, Card, Input, ToggleButton } from '@design-system';
+import { Button, Card, ToggleButton } from '@design-system';
 import { Link } from 'react-router-dom';
-import { FaPowerOff, FaVolumeUp, FaVolumeDown, FaVolumeMute, FaVolumeOff, FaExchangeAlt, FaArrowLeft, 
+import { FaPowerOff, FaVolumeUp, FaVolumeDown, FaVolumeMute, FaVolumeOff, FaArrowLeft, 
          FaHome, FaBars, FaInfoCircle, FaBackspace, FaList, FaFastBackward, FaPlay, FaPause, FaStop, 
-         FaFastForward, FaTv, FaHdd, FaDesktop, FaVideo } from 'react-icons/fa';
+         FaFastForward, FaTv, FaHdd, FaDesktop, FaVideo, FaPowerOff as FaAllOn } from 'react-icons/fa';
 import { SiNetflix, SiYoutube, SiAmazonprime } from 'react-icons/si';
 
-// HMR test comment - this should update without a full page reload
-console.log('VizioRemotePage updated - HMR test', new Date().toISOString());
-
-// Define a GQL subscription to listen for button press information
-const BUTTON_DEBUG_SUBSCRIPTION = gql`
-  subscription OnButtonDebugInfo {
-    buttonDebugInfo {
-      key
-      codeset
-      code
-    }
-  }
-`;
-
+// GraphQL Queries and Mutations
 const TV_STATUS_QUERY = gql`
   query GetTVStatus {
     tvStatus {
@@ -32,6 +19,21 @@ const TV_STATUS_QUERY = gql`
       currentApp
     }
     tvConnectionStatus {
+      connected
+    }
+  }
+`;
+
+const DENON_AVR_STATUS_QUERY = gql`
+  query GetDenonAvrStatus {
+    denonAvrStatus {
+      isPoweredOn
+      volume
+      isMuted
+      input
+      soundMode
+    }
+    denonAvrConnectionStatus {
       connected
     }
   }
@@ -50,9 +52,33 @@ const TV_STATUS_SUBSCRIPTION = gql`
   }
 `;
 
+const DENON_AVR_STATUS_SUBSCRIPTION = gql`
+  subscription OnDenonAvrStatusChanged {
+    denonAvrStatusChanged {
+      isPoweredOn
+      volume
+      isMuted
+      input
+      soundMode
+    }
+  }
+`;
+
 const SEND_TV_COMMAND = gql`
   mutation SendTVCommand($command: String!, $value: String) {
     sendTVCommand(command: $command, value: $value)
+  }
+`;
+
+const SEND_DENON_AVR_COMMAND = gql`
+  mutation SendDenonAvrCommand($command: String!, $value: String) {
+    sendDenonAvrCommand(command: $command, value: $value)
+  }
+`;
+
+const SYNC_DEVICES = gql`
+  mutation SyncDevices {
+    syncDevices
   }
 `;
 
@@ -67,24 +93,7 @@ const ERROR_LOGS_SUBSCRIPTION = gql`
   }
 `;
 
-const APP_CHANGED_SUBSCRIPTION = gql`
-  subscription OnAppChanged {
-    appChanged {
-      currentApp
-      previousApp
-      timestamp
-      tvStatus {
-        isPoweredOn
-        volume
-        channel
-        isMuted
-        input
-        currentApp
-      }
-    }
-  }
-`;
-
+// Types
 type TVStatus = {
   isPoweredOn: boolean;
   volume: number;
@@ -94,6 +103,14 @@ type TVStatus = {
   currentApp: string;
 };
 
+type DenonAVRStatus = {
+  isPoweredOn: boolean;
+  volume: number;
+  isMuted: boolean;
+  input: string;
+  soundMode: string;
+};
+
 type ErrorLog = {
   id: string;
   timestamp: number;
@@ -101,15 +118,7 @@ type ErrorLog = {
   details?: string;
 };
 
-// Vizio TV inputs with icons
-const VIZIO_TV_INPUTS = [
-  { id: 'HDMI_1', name: 'HDMI 1', icon: <FaHdd /> },
-  { id: 'HDMI_2', name: 'HDMI 2', icon: <FaHdd /> },
-  { id: 'TV', name: 'TV/Antenna', icon: <FaTv /> },
-  { id: 'SMARTCAST', name: 'SmartCast', icon: <FaDesktop /> },
-];
-
-// Disney+ logo component using the official SVG from Wikimedia Commons
+// Custom Icons - matching Vizio remote exactly
 const DisneyPlusIcon = () => (
   <svg 
     viewBox="0 0 1041 565" 
@@ -164,7 +173,7 @@ const YouTubeIcon = () => (
   </div>
 );
 
-// Vizio TV apps - names must match what the server returns from VizioAPI.mapAppIdToName()
+// TV Apps and Inputs
 const VIZIO_TV_APPS = [
   { id: 'APP_NETFLIX', name: 'Netflix', displayName: 'Netflix', icon: <NetflixIcon />, color: 'bg-red-600 hover:bg-red-700' },
   { id: 'APP_PRIME', name: 'Prime Video', displayName: 'Prime', icon: <AmazonPrimeIcon />, color: 'bg-sky-600 hover:bg-sky-700' },
@@ -172,79 +181,120 @@ const VIZIO_TV_APPS = [
   { id: 'APP_DISNEY', name: 'Disney+', displayName: 'Disney+', icon: <DisneyPlusIcon />, color: 'bg-blue-700 hover:bg-blue-800' },
 ];
 
-export function VizioRemotePage() {
-  const [volume, setVolume] = useState(50);
-  const [channel, setChannel] = useState('');
-  const [isMuted, setIsMuted] = useState(false);
-  const [isPoweredOn, setIsPoweredOn] = useState(false);
-  const [currentInput, setCurrentInput] = useState('HDMI_1');
-  const [currentApp, setCurrentApp] = useState('Unknown');
-  
-  // Subscribe to button debug information
-  useSubscription(BUTTON_DEBUG_SUBSCRIPTION, {
-    onData: ({ data }) => {
-      if (data.data?.buttonDebugInfo) {
-        const { key, codeset, code } = data.data.buttonDebugInfo;
-        console.log(`Button Debug: key=${key}, codeset=${codeset}, code=${code}`);
-      }
-    },
-    onError: (error) => {
-      console.error('Button debug subscription error:', error);
-    }
-  });
-  
-  // Query initial TV status (reduced polling since we have real-time subscriptions)
-  const { loading: queryLoading, data: queryData, error: queryError, refetch: refetchStatus } = useQuery<{ 
+const VIZIO_TV_INPUTS = [
+  { id: 'HDMI_1', name: 'HDMI 1', icon: <FaHdd /> },
+  { id: 'HDMI_2', name: 'HDMI 2', icon: <FaHdd /> },
+  { id: 'HDMI_3', name: 'HDMI 3', icon: <FaHdd /> },
+  { id: 'HDMI_4', name: 'HDMI 4', icon: <FaHdd /> },
+  { id: 'TV', name: 'TV', icon: <FaTv /> },
+  { id: 'SMARTCAST', name: 'SmartCast', icon: <FaDesktop /> },
+];
+
+export function JohnsRemotePage() {
+  // TV State
+  const [tvVolume, setTvVolume] = useState(50);
+  const [tvChannel, setTvChannel] = useState('');
+  const [tvIsMuted, setTvIsMuted] = useState(false);
+  const [tvIsPoweredOn, setTvIsPoweredOn] = useState(false);
+  const [tvCurrentInput, setTvCurrentInput] = useState('HDMI_1');
+  const [tvCurrentApp, setTvCurrentApp] = useState('Unknown');
+
+  // AVR State
+  const [avrVolume, setAvrVolume] = useState(50.0);
+  const [avrIsMuted, setAvrIsMuted] = useState(false);
+  const [avrIsPoweredOn, setAvrIsPoweredOn] = useState(false);
+  const [avrCurrentInput, setAvrCurrentInput] = useState('TV');
+  const [avrSoundMode, setAvrSoundMode] = useState('STEREO');
+
+  const [errorMessage, setErrorMessage] = useState<string>('');
+
+  // TV Queries and Subscriptions
+  const { loading: tvQueryLoading, data: tvQueryData, error: tvQueryError, refetch: refetchTvStatus } = useQuery<{ 
     tvStatus: TVStatus; 
     tvConnectionStatus: { connected: boolean } 
   }>(TV_STATUS_QUERY, {
     onCompleted: (data) => {
       if (data.tvStatus) {
-        setIsPoweredOn(data.tvStatus.isPoweredOn);
-        setVolume(data.tvStatus.volume);
-        setChannel(data.tvStatus.channel);
-        setIsMuted(data.tvStatus.isMuted);
-        setCurrentInput(data.tvStatus.input);
-        setCurrentApp(data.tvStatus.currentApp);
+        setTvIsPoweredOn(data.tvStatus.isPoweredOn);
+        setTvVolume(data.tvStatus.volume);
+        setTvChannel(data.tvStatus.channel);
+        setTvIsMuted(data.tvStatus.isMuted);
+        setTvCurrentInput(data.tvStatus.input);
+        setTvCurrentApp(data.tvStatus.currentApp);
       }
     },
     onError: (error) => {
       console.error('Error fetching TV status:', error);
+      setErrorMessage('Error communicating with TV. Will attempt to reconnect...');
     },
-    // Reduced polling to 10 seconds since we have real-time subscriptions for status changes
-    pollInterval: 10000,
-    fetchPolicy: 'cache-and-network' // Use cache for faster initial load
+    fetchPolicy: 'cache-and-network'
   });
-  
-  // Subscribe to TV status changes
-  const { data: subscriptionData } = useSubscription<{ tvStatusChanged: TVStatus }>(TV_STATUS_SUBSCRIPTION, {
-    onData: ({ data }) => {
-      if (data.data?.tvStatusChanged) {
-        const status = data.data.tvStatusChanged;
-        setIsPoweredOn(status.isPoweredOn);
-        setVolume(status.volume);
-        setChannel(status.channel);
-        setIsMuted(status.isMuted);
-        setCurrentInput(status.input);
-        setCurrentApp(status.currentApp);
+
+  // AVR Queries and Subscriptions
+  const { loading: avrQueryLoading, data: avrQueryData, error: avrQueryError, refetch: refetchAvrStatus } = useQuery<{ 
+    denonAvrStatus: DenonAVRStatus; 
+    denonAvrConnectionStatus: { connected: boolean } 
+  }>(DENON_AVR_STATUS_QUERY, {
+    onCompleted: (data) => {
+      if (data.denonAvrStatus) {
+        setAvrIsPoweredOn(data.denonAvrStatus.isPoweredOn);
+        setAvrVolume(data.denonAvrStatus.volume);
+        setAvrIsMuted(data.denonAvrStatus.isMuted);
+        setAvrCurrentInput(data.denonAvrStatus.input);
+        setAvrSoundMode(data.denonAvrStatus.soundMode);
       }
     },
     onError: (error) => {
-      console.error('Subscription error:', error);
+      console.error('Error fetching AVR status:', error);
+      setErrorMessage('Error communicating with Denon AVR. Will attempt to reconnect...');
+    },
+    fetchPolicy: 'cache-and-network'
+  });
+
+  // TV Status Subscription
+  const { data: tvSubscriptionData } = useSubscription<{ tvStatusChanged: TVStatus }>(TV_STATUS_SUBSCRIPTION, {
+    onData: ({ data }) => {
+      if (data.data?.tvStatusChanged) {
+        const status = data.data.tvStatusChanged;
+        setTvIsPoweredOn(status.isPoweredOn);
+        setTvVolume(status.volume);
+        setTvChannel(status.channel);
+        setTvIsMuted(status.isMuted);
+        setTvCurrentInput(status.input);
+        setTvCurrentApp(status.currentApp);
+      }
+    },
+    onError: (error) => {
+      console.error('TV subscription error:', error);
+      setErrorMessage('Lost connection to TV. Attempting to reconnect...');
     }
   });
-  
-  // Subscribe to error logs
+
+  // AVR Status Subscription
+  const { data: avrSubscriptionData } = useSubscription<{ denonAvrStatusChanged: DenonAVRStatus }>(DENON_AVR_STATUS_SUBSCRIPTION, {
+    onData: ({ data }) => {
+      if (data.data?.denonAvrStatusChanged) {
+        const status = data.data.denonAvrStatusChanged;
+        setAvrIsPoweredOn(status.isPoweredOn);
+        setAvrVolume(status.volume);
+        setAvrIsMuted(status.isMuted);
+        setAvrCurrentInput(status.input);
+        setAvrSoundMode(status.soundMode);
+      }
+    },
+    onError: (error) => {
+      console.error('AVR subscription error:', error);
+      setErrorMessage('Lost connection to Denon AVR. Attempting to reconnect...');
+    }
+  });
+
+  // Error Log Subscription
   const { data: errorLogData } = useSubscription<{ errorLogChanged: ErrorLog[] }>(ERROR_LOGS_SUBSCRIPTION, {
     onData: ({ data }) => {
       if (data.data?.errorLogChanged && data.data.errorLogChanged.length > 0) {
-        // Get the most recent error
         const latestError = data.data.errorLogChanged[0];
-        // Only show TV remote related errors (filter by message content)
-        if (latestError.message.includes('TV') || latestError.message.includes('remote')) {
+        if (latestError.message.includes('TV') || latestError.message.includes('AVR') || latestError.message.includes('Sync')) {
           setErrorMessage(latestError.message);
-          
-          // Clear error message after 5 seconds
           setTimeout(() => {
             setErrorMessage('');
           }, 5000);
@@ -256,203 +306,227 @@ export function VizioRemotePage() {
     }
   });
 
-  // Subscribe to app changes for real-time updates
-  useSubscription(APP_CHANGED_SUBSCRIPTION, {
-    onData: ({ data }) => {
-      if (data.data?.appChanged) {
-        const { currentApp: newApp, previousApp, tvStatus } = data.data.appChanged;
-        console.log(`App changed from ${previousApp} to ${newApp}`);
-        
-        // Update all TV status including the new app
-        if (tvStatus) {
-          setIsPoweredOn(tvStatus.isPoweredOn);
-          setVolume(tvStatus.volume);
-          setChannel(tvStatus.channel);
-          setIsMuted(tvStatus.isMuted);
-          setCurrentInput(tvStatus.input);
-          setCurrentApp(tvStatus.currentApp);
-        }
-      }
-    },
+  // Mutations
+  const [sendTvCommand, { loading: tvCommandLoading, error: tvCommandError }] = useMutation(SEND_TV_COMMAND, {
     onError: (error) => {
-      console.error('App change subscription error:', error);
-    }
-  });
-  
-  // Use effect to update state from subscription
-  useEffect(() => {
-    if (subscriptionData?.tvStatusChanged) {
-      const status = subscriptionData.tvStatusChanged;
-      setIsPoweredOn(status.isPoweredOn);
-      setVolume(status.volume);
-      setChannel(status.channel);
-      setIsMuted(status.isMuted);
-      setCurrentInput(status.input);
-      setCurrentApp(status.currentApp);
-    }
-  }, [subscriptionData]);
-  
-  const [sendCommand, { loading: commandLoading, error: commandError }] = useMutation(SEND_TV_COMMAND, {
-    onError: (error) => {
-      console.error('Error sending command:', error);
+      console.error('Error sending TV command:', error);
       setErrorMessage('Failed to send command to TV. The connection may have been lost.');
-      refetchStatus();
+      refetchTvStatus();
     }
   });
-  
-  // Add a state for the error message
-  const [errorMessage, setErrorMessage] = useState<string>('');
-  
-  // Add effect to check connection status and redirect if disconnected
-  useEffect(() => {
-    // If we have data and TV is not connected, redirect to the pairing page
-    if (queryData && !queryData.tvConnectionStatus.connected) {
-      setErrorMessage('TV connection lost. Please set up your TV again.');
-      // Add a small delay before redirecting
-      const redirectTimer = setTimeout(() => {
-        window.location.href = '/tv-pairing';
+
+  const [sendAvrCommand, { loading: avrCommandLoading, error: avrCommandError }] = useMutation(SEND_DENON_AVR_COMMAND, {
+    onError: (error) => {
+      console.error('Error sending AVR command:', error);
+      setErrorMessage('Failed to send command to Denon AVR. The connection may have been lost.');
+      refetchAvrStatus();
+    }
+  });
+
+  const [allOnDevices, { loading: allOnLoading, error: allOnError }] = useMutation(SYNC_DEVICES, {
+    onError: (error) => {
+      console.error('Error with All On operation:', error);
+      setErrorMessage('Failed to turn on devices. Please check connections.');
+    },
+    onCompleted: () => {
+      setErrorMessage('');
+      // Show success message briefly
+      setErrorMessage('All devices turned on successfully!');
+      setTimeout(() => {
+        setErrorMessage('');
       }, 3000);
-      
-      return () => clearTimeout(redirectTimer);
     }
-  }, [queryData]);
-  
-  // Add effect to refetch status if there's an error
-  useEffect(() => {
-    if (queryError) {
-      setErrorMessage('Error communicating with TV. Will attempt to reconnect...');
-      // Try to refetch after a delay
-      const refetchTimer = setTimeout(() => {
-        refetchStatus();
-      }, 5000);
-      
-      return () => clearTimeout(refetchTimer);
-    }
-  }, [queryError, refetchStatus]);
-  
-  // Add effect to show command errors
-  useEffect(() => {
-    if (commandError) {
-      setErrorMessage(`Command error: ${commandError.message}`);
-    }
-  }, [commandError]);
-  
-  const handleCommand = async (command: string, value?: string) => {
+  });
+
+  // Command Handlers
+  const handleTvCommand = async (command: string, value?: string) => {
     try {
-      // Only clear error message for new commands, not from existing errors
-      if (!commandError && !errorMessage.includes('Failed')) {
+      if (!tvCommandError && !errorMessage.includes('Failed')) {
         setErrorMessage(''); 
       }
       
-      const result = await sendCommand({ variables: { command, value } });
+      const result = await sendTvCommand({ variables: { command, value } });
       
-      // Check if the command failed (returned false)
       if (result.data && result.data.sendTVCommand === false) {
-        setErrorMessage(`The command "${command}" failed. The TV may be unresponsive.`);
+        setErrorMessage(`The TV command "${command}" failed. The TV may be unresponsive.`);
       }
     } catch (error) {
-      console.error('Error sending command:', error);
+      console.error('Error sending TV command:', error);
       setErrorMessage('Failed to send command to TV. The connection may have been lost.');
-      // Also try to refetch the status to see if we're still connected
-      refetchStatus();
+      refetchTvStatus();
     }
   };
 
-  const isTVConnected = queryData?.tvConnectionStatus?.connected === true;
-  const loading = queryLoading || commandLoading;
-  
-  if (!isTVConnected) {
+  const handleAvrCommand = async (command: string, value?: string) => {
+    try {
+      if (!avrCommandError && !errorMessage.includes('Failed')) {
+        setErrorMessage(''); 
+      }
+      
+      const result = await sendAvrCommand({ variables: { command, value } });
+      
+      if (result.data && result.data.sendDenonAvrCommand === false) {
+        setErrorMessage(`The AVR command "${command}" failed. The AVR may be unresponsive.`);
+      }
+    } catch (error) {
+      console.error('Error sending AVR command:', error);
+      setErrorMessage('Failed to send command to Denon AVR. The connection may have been lost.');
+      refetchAvrStatus();
+    }
+  };
+
+  const handleAllOn = async () => {
+    try {
+      setErrorMessage('Turning on devices...');
+      await allOnDevices();
+    } catch (error) {
+      console.error('Error with All On operation:', error);
+      setErrorMessage('Failed to turn on devices. Please check connections.');
+    }
+  };
+
+  // Connection Status
+  const isTVConnected = tvQueryData?.tvConnectionStatus?.connected === true;
+  const isAVRConnected = avrQueryData?.denonAvrConnectionStatus?.connected === true;
+  const loading = tvQueryLoading || avrQueryLoading || tvCommandLoading || avrCommandLoading || allOnLoading;
+
+  // All On button should be disabled if both devices are on and AVR is set to TV input
+  const isAllOnDisabled = tvIsPoweredOn && avrIsPoweredOn && avrCurrentInput === 'TV';
+
+  // Check if both devices are connected
+  if (!isTVConnected || !isAVRConnected) {
     return (
       <div>
-        <h2>Vizio TV Remote Control</h2>
+        <h2>John's Remote</h2>
         
         <div className="grid grid-cols-1 gap-8 mt-6">
-          <Card title="TV Not Connected" subtitle="Connection required">
-            <p className="mb-4">
-              Your TV is not connected. You need to pair with your Vizio TV before you can control it.
-            </p>
-            <Link to="/tv-pairing" className="farmhouse-btn farmhouse-btn-primary">
-              Go to TV Setup
-            </Link>
-          </Card>
+          {!isTVConnected && (
+            <Card title="TV Not Connected" subtitle="Connection required">
+              <p className="mb-4">
+                Your TV is not connected. You need to pair with your Vizio TV before you can use John's Remote.
+              </p>
+              <Link to="/tv-pairing" className="farmhouse-btn farmhouse-btn-primary">
+                Go to TV Setup
+              </Link>
+            </Card>
+          )}
+          
+          {!isAVRConnected && (
+            <Card title="AVR Not Connected" subtitle="Connection required">
+              <p className="mb-4">
+                Your Denon AVR is not connected. Please check your network connection and ensure the AVR is powered on.
+              </p>
+              <Link to="/denon-avr-remote" className="farmhouse-btn farmhouse-btn-primary">
+                Go to AVR Remote
+              </Link>
+            </Card>
+          )}
         </div>
       </div>
     );
   }
-  
+
   return (
     <div>
-      <h2>Vizio TV Remote Control</h2>
+      <h2>John's Remote</h2>
       
       {errorMessage && (
-        <div className="mb-4 p-4 bg-red-100 text-red-700 rounded">
+        <div className={`mb-4 p-4 rounded ${
+          errorMessage.includes('successfully') 
+            ? 'bg-green-100 text-green-700' 
+            : 'bg-red-100 text-red-700'
+        }`}>
           {errorMessage}
         </div>
       )}
       
       <div className="flex justify-center mt-6">
         <div className="relative w-full max-w-sm bg-slate-900 rounded-3xl px-6 pt-6 pb-10 shadow-xl">
-          {/* Vizio logo at top */}
+          {/* Header */}
           <div className="text-center mb-4">
-            <div className="text-white font-bold text-2xl tracking-wider">VIZIO</div>
+            <div className="text-white font-bold text-2xl tracking-wider">JOHN'S</div>
+            <div className="text-gray-400 text-sm tracking-wide">REMOTE</div>
           </div>
           
-          {/* TV Status Display - Like a remote screen */}
+          {/* Combined Status Display */}
           <div className="bg-slate-300 rounded-lg p-3 mb-6 text-center shadow-inner">
             <div className="font-bold text-lg mb-1">
-              {isPoweredOn ? 'TV ON' : 'TV OFF'}
+              TV: {tvIsPoweredOn ? 'ON' : 'OFF'} | AVR: {avrIsPoweredOn ? 'ON' : 'OFF'}
             </div>
             <div className="text-sm">
-              <div><strong>Input:</strong> {currentInput.replace('_', ' ')}</div>
-              <div><strong>Volume:</strong> {volume}% {isMuted ? '(Muted)' : ''}</div>
-              {currentInput === 'TV' && channel && <div><strong>Channel:</strong> {channel}</div>}
-              {currentInput === 'SMARTCAST' && currentApp && currentApp !== 'Unknown' && (
-                <div><strong>App:</strong> {currentApp}</div>
+              <div><strong>TV Input:</strong> {tvCurrentInput.replace('_', ' ')}</div>
+              <div><strong>AVR Volume:</strong> {avrVolume} {avrIsMuted ? '(Muted)' : ''}</div>
+              <div><strong>AVR Input:</strong> {avrCurrentInput}</div>
+              {tvCurrentInput === 'TV' && tvChannel && <div><strong>Channel:</strong> {tvChannel}</div>}
+              {tvCurrentInput === 'SMARTCAST' && tvCurrentApp && tvCurrentApp !== 'Unknown' && (
+                <div><strong>App:</strong> {tvCurrentApp}</div>
               )}
             </div>
           </div>
           
-          {/* Power & Mute Row */}
+          {/* Power & All On Row */}
           <div className="flex justify-between mb-6">
             <ToggleButton
               variant="power"
-              isActive={isPoweredOn}
-              onClick={() => handleCommand('POWER')}
+              isActive={tvIsPoweredOn}
+              onClick={() => handleTvCommand('POWER')}
               disabled={loading}
-              title={isPoweredOn ? 'Turn TV Off' : 'Turn TV On'}
+              title={tvIsPoweredOn ? 'Turn TV Off' : 'Turn TV On'}
             >
               <FaPowerOff />
             </ToggleButton>
             
+            <Button
+              className={`px-4 py-2 rounded-lg text-white shadow-md flex items-center justify-center ${
+                isAllOnDisabled 
+                  ? 'bg-gray-500 cursor-not-allowed' 
+                  : 'bg-green-600 hover:bg-green-700'
+              }`}
+              onClick={handleAllOn}
+              disabled={loading || isAllOnDisabled}
+              title={
+                isAllOnDisabled 
+                  ? "All devices are on and configured" 
+                  : "Turn on both devices and set AVR to TV mode with volume 55"
+              }
+            >
+              <FaAllOn className="mr-2" />
+              All On
+            </Button>
+            
             <ToggleButton
               variant="mute"
-              isActive={isMuted}
-              onClick={() => handleCommand('MUTE')}
-              disabled={loading || !isPoweredOn}
-              title={isMuted ? "Unmute Sound" : "Mute Sound"}
+              isActive={avrIsMuted}
+              onClick={() => handleAvrCommand('MUTE_TOGGLE')}
+              disabled={loading || !avrIsPoweredOn}
+              title={avrIsMuted ? "Unmute AVR Sound" : "Mute AVR Sound"}
             >
-              {isMuted ? <FaVolumeOff /> : <FaVolumeMute />}
+              {avrIsMuted ? <FaVolumeOff /> : <FaVolumeMute />}
             </ToggleButton>
           </div>
           
           {/* Smart TV App Shortcuts */}
           <div className="mb-6">
             <div className="text-white mb-2 font-medium">Smart TV Apps</div>
-            <div className="grid grid-cols-4 gap-3 justify-items-center">
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: 'repeat(2, 1fr)', 
+              gap: '12px', 
+              maxWidth: '200px', 
+              margin: '0 auto',
+              justifyItems: 'center'
+            }}>
               {VIZIO_TV_APPS.map(app => {
-                // More robust app matching to handle variations in app names
                 const isAppActive = () => {
-                  if (!currentApp || currentApp === 'Unknown' || currentApp === 'No App Running') {
+                  if (!tvCurrentApp || tvCurrentApp === 'Unknown' || tvCurrentApp === 'No App Running') {
                     return false;
                   }
                   
-                  // Direct match
-                  if (currentApp === app.name) {
+                  if (tvCurrentApp === app.name) {
                     return true;
                   }
                   
-                  // Handle common variations
-                  const normalizedCurrent = currentApp.toLowerCase().replace(/[^a-z0-9]/g, '');
+                  const normalizedCurrent = tvCurrentApp.toLowerCase().replace(/[^a-z0-9]/g, '');
                   const normalizedApp = app.name.toLowerCase().replace(/[^a-z0-9]/g, '');
                   
                   return normalizedCurrent === normalizedApp;
@@ -463,11 +537,11 @@ export function VizioRemotePage() {
                     key={app.id}
                     variant="input"
                     isActive={isAppActive()}
-                    onClick={() => handleCommand(app.id)}
-                    disabled={loading || !isPoweredOn}
+                    onClick={() => handleTvCommand(app.id)}
+                    disabled={loading || !tvIsPoweredOn}
                     title={`Open ${app.displayName} App`}
                     className="h-14 w-14 flex items-center justify-center p-2"
-                                    >
+                  >
                     {app.icon}
                   </ToggleButton>
                 );
@@ -475,32 +549,28 @@ export function VizioRemotePage() {
             </div>
           </div>
           
-          {/* Volume Control with Bar Graph Style */}
+          {/* AVR Volume Control */}
           <div className="mb-6 w-full">
-            <div className="text-white mb-3 font-medium text-center">Volume Control</div>
+            <div className="text-white mb-3 font-medium text-center">AVR Volume Control</div>
             
-            {/* Volume level display */}
             <div className="text-center text-white text-lg font-bold mb-3">
-              {volume}%{isMuted ? ' (Muted)' : ''}
+              {avrVolume}{avrIsMuted ? ' (Muted)' : ''}
             </div>
             
-            {/* Horizontal layout: Vol Down | Bar Graph | Vol Up */}
             <div className="flex items-end justify-between gap-4 w-full">
-              {/* Volume Down Button */}
               <Button 
                 className="w-14 h-14 rounded-lg bg-slate-700 hover:bg-slate-600 text-white shadow-md flex items-center justify-center flex-shrink-0"
-                onClick={() => handleCommand('VOLUME_DOWN')}
-                disabled={loading || !isPoweredOn}
+                onClick={() => handleAvrCommand('VOLUME_DOWN')}
+                disabled={loading || !avrIsPoweredOn}
               >
                 <FaVolumeDown className="text-xl" />
               </Button>
               
-              {/* Bar graph style volume visualization */}
               <div className="flex items-end justify-center gap-1 h-10 flex-1">
                 {Array.from({ length: 20 }, (_, i) => {
-                  const barLevel = (i + 1) * 5; // Each bar represents 5 volume levels (0-100)
-                  const isActive = volume >= barLevel;
-                  const barHeight = `${10 + (i * 1.5)}px`; // Reduced height progression
+                  const barLevel = (i + 1) * 5;
+                  const isActive = avrVolume >= barLevel;
+                  const barHeight = `${10 + (i * 1.5)}px`;
                   
                   return (
                     <div
@@ -510,59 +580,29 @@ export function VizioRemotePage() {
                         width: '8px',
                         height: barHeight,
                         backgroundColor: isActive 
-                          ? (isMuted ? '#BB8274' : '#6A869C') // terracotta when muted, blue when normal
-                          : '#4F4F4F', // farmhouse-charcoal for inactive bars
-                        opacity: isActive ? (isMuted ? 0.7 : 1) : 0.3,
+                          ? (avrIsMuted ? '#BB8274' : '#6A869C')
+                          : '#4F4F4F',
+                        opacity: isActive ? (avrIsMuted ? 0.7 : 1) : 0.3,
                         borderRadius: '2px',
-                        boxShadow: isActive && !isMuted ? '0 0 4px rgba(106, 134, 156, 0.4)' : 'none'
+                        boxShadow: isActive && !avrIsMuted ? '0 0 4px rgba(106, 134, 156, 0.4)' : 'none'
                       }}
                     />
                   );
                 })}
               </div>
               
-              {/* Volume Up Button */}
               <Button 
                 className="w-14 h-14 rounded-lg bg-slate-700 hover:bg-slate-600 text-white shadow-md flex items-center justify-center flex-shrink-0"
-                onClick={() => handleCommand('VOLUME_UP')}
-                disabled={loading || !isPoweredOn}
+                onClick={() => handleAvrCommand('VOLUME_UP')}
+                disabled={loading || !avrIsPoweredOn}
               >
                 <FaVolumeUp className="text-xl" />
               </Button>
             </div>
           </div>
           
-          {/* Navigation and Channel Controls */}
-          <div className="flex justify-between mb-6">
-            {/* Channel Controls */}
-            <div style={{ 
-              display: 'grid', 
-              gridTemplateRows: 'auto auto auto',
-              gap: '12px',
-              justifyItems: 'center'
-            }}>
-              <Button 
-                className="w-12 h-12 rounded-full bg-slate-600 hover:bg-slate-700 text-white shadow-md text-xl"
-                onClick={() => handleCommand('CHANNEL_UP')} 
-                disabled={loading || !isPoweredOn}
-                style={{ width: '48px', height: '48px' }}
-                title="Channel Up"
-              >
-                +
-              </Button>
-              <span className="text-white text-xs">CH</span>
-              <Button 
-                className="w-12 h-12 rounded-full bg-slate-600 hover:bg-slate-700 text-white shadow-md text-xl"
-                onClick={() => handleCommand('CHANNEL_DOWN')} 
-                disabled={loading || !isPoweredOn}
-                style={{ width: '48px', height: '48px' }}
-                title="Channel Down"
-              >
-                -
-              </Button>
-            </div>
-            
-            {/* Navigation D-Pad */}
+          {/* Navigation D-Pad */}
+          <div className="flex justify-center mb-6">
             <div style={{ 
               display: 'grid',
               gridTemplateAreas: `
@@ -576,55 +616,50 @@ export function VizioRemotePage() {
               justifyItems: 'center',
               alignItems: 'center'
             }}>
-              {/* Up button */}
               <Button 
                 className="w-12 h-12 rounded-full bg-slate-600 hover:bg-slate-700 text-white shadow-md"
-                onClick={() => handleCommand('UP')} 
-                disabled={loading || !isPoweredOn}
+                onClick={() => handleTvCommand('UP')} 
+                disabled={loading || !tvIsPoweredOn}
                 style={{ gridArea: 'up' }}
                 title="Navigate Up"
               >
                 ▲
               </Button>
               
-              {/* Left button */}
               <Button 
                 className="w-12 h-12 rounded-full bg-slate-600 hover:bg-slate-700 text-white shadow-md"
-                onClick={() => handleCommand('LEFT')} 
-                disabled={loading || !isPoweredOn}
+                onClick={() => handleTvCommand('LEFT')} 
+                disabled={loading || !tvIsPoweredOn}
                 style={{ gridArea: 'left' }}
                 title="Navigate Left"
               >
                 ◀
               </Button>
               
-              {/* OK button */}
               <Button 
                 className="w-14 h-14 rounded-full bg-slate-500 hover:bg-slate-600 text-white font-bold text-lg shadow-md"
-                onClick={() => handleCommand('OK')} 
-                disabled={loading || !isPoweredOn}
+                onClick={() => handleTvCommand('OK')} 
+                disabled={loading || !tvIsPoweredOn}
                 style={{ gridArea: 'ok', width: '56px', height: '56px' }}
                 title="Select/Confirm"
               >
                 OK
               </Button>
               
-              {/* Right button */}
               <Button 
                 className="w-12 h-12 rounded-full bg-slate-600 hover:bg-slate-700 text-white shadow-md"
-                onClick={() => handleCommand('RIGHT')} 
-                disabled={loading || !isPoweredOn}
+                onClick={() => handleTvCommand('RIGHT')} 
+                disabled={loading || !tvIsPoweredOn}
                 style={{ gridArea: 'right' }}
                 title="Navigate Right"
               >
                 ▶
               </Button>
               
-              {/* Down button */}
               <Button 
                 className="w-12 h-12 rounded-full bg-slate-600 hover:bg-slate-700 text-white shadow-md"
-                onClick={() => handleCommand('DOWN')} 
-                disabled={loading || !isPoweredOn}
+                onClick={() => handleTvCommand('DOWN')} 
+                disabled={loading || !tvIsPoweredOn}
                 style={{ gridArea: 'down' }}
                 title="Navigate Down"
               >
@@ -637,8 +672,8 @@ export function VizioRemotePage() {
           <div className="flex justify-between mb-6">
             <Button 
               className="px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-sm shadow-md" 
-              onClick={() => handleCommand('BACK')} 
-              disabled={loading || !isPoweredOn}
+              onClick={() => handleTvCommand('BACK')} 
+              disabled={loading || !tvIsPoweredOn}
               title="Go Back"
             >
               <FaArrowLeft />
@@ -646,8 +681,8 @@ export function VizioRemotePage() {
             
             <Button 
               className="px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-sm shadow-md" 
-              onClick={() => handleCommand('HOME')} 
-              disabled={loading || !isPoweredOn}
+              onClick={() => handleTvCommand('HOME')} 
+              disabled={loading || !tvIsPoweredOn}
               title="Go to Home Screen"
             >
               <FaHome />
@@ -655,8 +690,8 @@ export function VizioRemotePage() {
             
             <Button 
               className="px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-sm shadow-md" 
-              onClick={() => handleCommand('MENU')} 
-              disabled={loading || !isPoweredOn}
+              onClick={() => handleTvCommand('MENU')} 
+              disabled={loading || !tvIsPoweredOn}
               title="Open Menu"
             >
               <FaBars />
@@ -664,38 +699,38 @@ export function VizioRemotePage() {
             
             <Button 
               className="px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-sm shadow-md" 
-              onClick={() => handleCommand('INFO')} 
-              disabled={loading || !isPoweredOn}
+              onClick={() => handleTvCommand('INFO')} 
+              disabled={loading || !tvIsPoweredOn}
               title="Show Program Info"
             >
               <FaInfoCircle />
             </Button>
           </div>
           
-          {/* Number Pad - in a traditional 3x4 grid */}
+          {/* Number Pad */}
           <div className="mb-6">
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', maxWidth: '20rem', margin: '0 auto' }}>
               {/* Row 1: 1, 2, 3 */}
               <Button
                 className="h-14 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-lg shadow-md"
-                onClick={() => handleCommand('NUMBER', '1')}
-                disabled={loading || !isPoweredOn}
+                onClick={() => handleTvCommand('NUMBER', '1')}
+                disabled={loading || !tvIsPoweredOn}
                 title="Press Number 1"
               >
                 1
               </Button>
               <Button
                 className="h-14 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-lg shadow-md"
-                onClick={() => handleCommand('NUMBER', '2')}
-                disabled={loading || !isPoweredOn}
+                onClick={() => handleTvCommand('NUMBER', '2')}
+                disabled={loading || !tvIsPoweredOn}
                 title="Press Number 2"
               >
                 2
               </Button>
               <Button
                 className="h-14 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-lg shadow-md"
-                onClick={() => handleCommand('NUMBER', '3')}
-                disabled={loading || !isPoweredOn}
+                onClick={() => handleTvCommand('NUMBER', '3')}
+                disabled={loading || !tvIsPoweredOn}
                 title="Press Number 3"
               >
                 3
@@ -704,24 +739,24 @@ export function VizioRemotePage() {
               {/* Row 2: 4, 5, 6 */}
               <Button
                 className="h-14 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-lg shadow-md"
-                onClick={() => handleCommand('NUMBER', '4')}
-                disabled={loading || !isPoweredOn}
+                onClick={() => handleTvCommand('NUMBER', '4')}
+                disabled={loading || !tvIsPoweredOn}
                 title="Press Number 4"
               >
                 4
               </Button>
               <Button
                 className="h-14 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-lg shadow-md"
-                onClick={() => handleCommand('NUMBER', '5')}
-                disabled={loading || !isPoweredOn}
+                onClick={() => handleTvCommand('NUMBER', '5')}
+                disabled={loading || !tvIsPoweredOn}
                 title="Press Number 5"
               >
                 5
               </Button>
               <Button
                 className="h-14 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-lg shadow-md"
-                onClick={() => handleCommand('NUMBER', '6')}
-                disabled={loading || !isPoweredOn}
+                onClick={() => handleTvCommand('NUMBER', '6')}
+                disabled={loading || !tvIsPoweredOn}
                 title="Press Number 6"
               >
                 6
@@ -730,24 +765,24 @@ export function VizioRemotePage() {
               {/* Row 3: 7, 8, 9 */}
               <Button
                 className="h-14 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-lg shadow-md"
-                onClick={() => handleCommand('NUMBER', '7')}
-                disabled={loading || !isPoweredOn}
+                onClick={() => handleTvCommand('NUMBER', '7')}
+                disabled={loading || !tvIsPoweredOn}
                 title="Press Number 7"
               >
                 7
               </Button>
               <Button
                 className="h-14 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-lg shadow-md"
-                onClick={() => handleCommand('NUMBER', '8')}
-                disabled={loading || !isPoweredOn}
+                onClick={() => handleTvCommand('NUMBER', '8')}
+                disabled={loading || !tvIsPoweredOn}
                 title="Press Number 8"
               >
                 8
               </Button>
               <Button
                 className="h-14 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-lg shadow-md"
-                onClick={() => handleCommand('NUMBER', '9')}
-                disabled={loading || !isPoweredOn}
+                onClick={() => handleTvCommand('NUMBER', '9')}
+                disabled={loading || !tvIsPoweredOn}
                 title="Press Number 9"
               >
                 9
@@ -756,24 +791,24 @@ export function VizioRemotePage() {
               {/* Row 4: EXIT, 0, GUIDE */}
               <Button
                 className="h-14 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-sm shadow-md"
-                onClick={() => handleCommand('EXIT')}
-                disabled={loading || !isPoweredOn}
+                onClick={() => handleTvCommand('EXIT')}
+                disabled={loading || !tvIsPoweredOn}
                 title="Exit Current Screen"
               >
                 <FaBackspace />
               </Button>
               <Button
                 className="h-14 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-lg shadow-md"
-                onClick={() => handleCommand('NUMBER', '0')}
-                disabled={loading || !isPoweredOn}
+                onClick={() => handleTvCommand('NUMBER', '0')}
+                disabled={loading || !tvIsPoweredOn}
                 title="Press Number 0"
               >
                 0
               </Button>
               <Button
                 className="h-14 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-sm shadow-md"
-                onClick={() => handleCommand('GUIDE')}
-                disabled={loading || !isPoweredOn}
+                onClick={() => handleTvCommand('GUIDE')}
+                disabled={loading || !tvIsPoweredOn}
                 title="Show TV Guide"
               >
                 <FaList />
@@ -785,8 +820,8 @@ export function VizioRemotePage() {
           <div className="flex justify-between mb-6">
             <Button 
               className="w-10 h-10 rounded-full bg-slate-700 hover:bg-slate-600 text-white shadow-md"
-              onClick={() => handleCommand('REWIND')} 
-              disabled={loading || !isPoweredOn}
+              onClick={() => handleTvCommand('REWIND')} 
+              disabled={loading || !tvIsPoweredOn}
               title="Rewind"
             >
               <FaFastBackward />
@@ -794,8 +829,8 @@ export function VizioRemotePage() {
             
             <Button 
               className="w-10 h-10 rounded-full bg-slate-700 hover:bg-slate-600 text-white shadow-md"
-              onClick={() => handleCommand('PLAY')} 
-              disabled={loading || !isPoweredOn}
+              onClick={() => handleTvCommand('PLAY')} 
+              disabled={loading || !tvIsPoweredOn}
               title="Play"
             >
               <FaPlay />
@@ -803,8 +838,8 @@ export function VizioRemotePage() {
             
             <Button 
               className="w-10 h-10 rounded-full bg-slate-700 hover:bg-slate-600 text-white shadow-md"
-              onClick={() => handleCommand('PAUSE')} 
-              disabled={loading || !isPoweredOn}
+              onClick={() => handleTvCommand('PAUSE')} 
+              disabled={loading || !tvIsPoweredOn}
               title="Pause"
             >
               <FaPause />
@@ -812,8 +847,8 @@ export function VizioRemotePage() {
             
             <Button 
               className="w-10 h-10 rounded-full bg-slate-700 hover:bg-slate-600 text-white shadow-md"
-              onClick={() => handleCommand('STOP')} 
-              disabled={loading || !isPoweredOn}
+              onClick={() => handleTvCommand('STOP')} 
+              disabled={loading || !tvIsPoweredOn}
               title="Stop"
             >
               <FaStop />
@@ -821,8 +856,8 @@ export function VizioRemotePage() {
             
             <Button 
               className="w-10 h-10 rounded-full bg-slate-700 hover:bg-slate-600 text-white shadow-md"
-              onClick={() => handleCommand('FAST_FORWARD')} 
-              disabled={loading || !isPoweredOn}
+              onClick={() => handleTvCommand('FAST_FORWARD')} 
+              disabled={loading || !tvIsPoweredOn}
               title="Fast Forward"
             >
               <FaFastForward />
@@ -831,15 +866,15 @@ export function VizioRemotePage() {
           
           {/* Input Selection */}
           <div className="mb-4">
-            <div className="text-white mb-2 font-medium">Input Selection</div>
+            <div className="text-white mb-2 font-medium">TV Input Selection</div>
             <div className="grid grid-cols-2 gap-2">
               {VIZIO_TV_INPUTS.map(input => (
                 <ToggleButton
                   key={input.id}
                   variant="input"
-                  isActive={currentInput === input.id}
-                  onClick={() => handleCommand(`INPUT_${input.id}`)}
-                  disabled={loading || !isPoweredOn}
+                  isActive={tvCurrentInput === input.id}
+                  onClick={() => handleTvCommand(`INPUT_${input.id}`)}
+                  disabled={loading || !tvIsPoweredOn}
                   title={input.name}
                   className="h-12 flex-col text-xs"
                 >

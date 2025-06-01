@@ -1,10 +1,14 @@
 import { DenonTelnetAPI, DENON_COMMANDS } from '../utils/denonTelnetApi.js';
 import { denonTelnetApi } from '../config/denon.js';
 import { logger } from '../utils/logger.js';
+import { DENON_AVR_STATUS_CHANNEL } from '../resolvers.js';
+import net from 'net';
+import { createDenonAPIFromEnv } from '../utils/denonApi.js';
+import type { DenonAPI } from '../utils/denonApi.js';
 
 export type DenonAVRStatus = {
   isPoweredOn: boolean;
-  volume: number;
+  volume: number; // Raw Denon volume (0-99, with decimals like 50.5)
   isMuted: boolean;
   input: string;
   soundMode: string;
@@ -12,8 +16,11 @@ export type DenonAVRStatus = {
 
 class DenonAVRService {
   private denonApi: DenonTelnetAPI | null = null;
+  private httpApi: DenonAPI;
   private isConnected: boolean = false;
   private simulationMode: boolean = false;
+  private ip: string;
+  private port: number;
   private status: DenonAVRStatus = {
     isPoweredOn: false,
     volume: 0,
@@ -21,9 +28,14 @@ class DenonAVRService {
     input: '',
     soundMode: ''
   };
-  private statusPollingInterval: NodeJS.Timeout | null = null;
   
   constructor() {
+    // Read connection settings
+    this.ip = process.env.DENON_AVR_IP || '192.168.50.98';
+    this.port = process.env.DENON_AVR_PORT ? parseInt(process.env.DENON_AVR_PORT, 10) : 23;
+    // HTTP API for fallback
+    this.httpApi = createDenonAPIFromEnv();
+    
     // Set default values for simulation mode
     this.status = {
       isPoweredOn: false,
@@ -46,6 +58,7 @@ class DenonAVRService {
     try {
       this.denonApi = denonTelnetApi;
       logger.info('Denon AVR Telnet API initialized');
+      // Note: setupRealTimeMonitoring() will be called in init() after startMonitoring()
     } catch (error) {
       logger.warn('Failed to initialize Denon AVR Telnet API, simulation mode enabled', { error });
       this.simulationMode = true;
@@ -54,7 +67,74 @@ class DenonAVRService {
   }
   
   /**
-   * Initialize the AVR connection
+   * Set up real-time monitoring event listeners
+   */
+  private setupRealTimeMonitoring(): void {
+    if (!this.denonApi) {
+      logger.warn('Cannot setup real-time monitoring: denonApi is null');
+      return;
+    }
+
+    logger.info('Setting up Denon AVR real-time monitoring event listeners');
+
+    // Listen for connection status changes
+    this.denonApi.on('connectionChanged', (connected: boolean) => {
+      this.isConnected = connected;
+      logger.info('Denon AVR connection status changed', { connected });
+    });
+
+    // Listen for individual status changes and publish to GraphQL subscriptions
+    this.denonApi.on('powerChanged', (isPoweredOn: boolean) => {
+      this.status.isPoweredOn = isPoweredOn;
+      this.publishStatusChange();
+    });
+
+    this.denonApi.on('volumeChanged', (volume: number) => {
+      this.status.volume = volume;
+      this.publishStatusChange();
+    });
+
+    this.denonApi.on('muteChanged', (isMuted: boolean) => {
+      this.status.isMuted = isMuted;
+      this.publishStatusChange();
+    });
+
+    this.denonApi.on('inputChanged', (input: string) => {
+      this.status.input = input;
+      this.publishStatusChange();
+    });
+
+    this.denonApi.on('soundModeChanged', (soundMode: string) => {
+      this.status.soundMode = soundMode;
+      this.publishStatusChange();
+    });
+
+    // Listen for complete status updates
+    this.denonApi.on('statusUpdate', (newStatus) => {
+      this.status = { ...newStatus };
+      this.publishStatusChange();
+    });
+  }
+
+  /**
+   * Publish status changes to GraphQL subscriptions
+   */
+  private publishStatusChange(): void {
+    try {
+      const pubsub = (global as any).pubsub;
+      if (pubsub) {
+        pubsub.publish(DENON_AVR_STATUS_CHANNEL, { 
+          denonAvrStatusChanged: this.status 
+        });
+        logger.debug('Published Denon AVR status change to GraphQL subscriptions', { status: this.status });
+      }
+    } catch (error) {
+      logger.debug('Failed to publish Denon AVR status change', { error });
+    }
+  }
+  
+  /**
+   * Initialize the AVR connection and start real-time monitoring
    */
   async init(): Promise<boolean> {
     if (this.simulationMode) {
@@ -68,20 +148,22 @@ class DenonAVRService {
     }
     
     try {
-      // Try to get power state directly first to test the connection
+      // Try to get initial power state to test the connection
       const isPoweredOn = await this.denonApi.getPowerState();
       logger.info('Initial Denon AVR power state check', { isPoweredOn });
       
-      // Then do a full refresh of all status parameters
+      // Get initial status using traditional polling method
       await this.refreshStatus(false);
       
+      // Start real-time monitoring for future changes
+      this.denonApi.startMonitoring();
+      
+      // Set up event listeners AFTER monitoring is started
+      this.setupRealTimeMonitoring();
+      
       this.isConnected = true;
-      this.startPolling();
       
-      // Force another immediate refresh after a short delay to ensure all status is current
-      setTimeout(() => this.refreshStatus(false), 2000);
-      
-      logger.info('Denon AVR connection initialized successfully', { status: this.status });
+      logger.info('Denon AVR connection initialized successfully with real-time monitoring', { status: this.status });
       return true;
     } catch (error) {
       logger.error('Failed to initialize Denon AVR connection', { error });
@@ -92,36 +174,17 @@ class DenonAVRService {
   }
   
   /**
-   * Start polling for AVR status updates
+   * Stop real-time monitoring (replaces stopPolling)
    */
-  private startPolling() {
-    if (this.statusPollingInterval) {
-      clearInterval(this.statusPollingInterval);
-    }
-    
-    // Poll every 30 seconds (increased from 10 seconds to reduce log noise)
-    this.statusPollingInterval = setInterval(async () => {
-      try {
-        await this.refreshStatus(true);
-      } catch (error) {
-        logger.error('Failed to poll Denon AVR status', { error });
-      }
-    }, 30000);
-  }
-  
-  /**
-   * Stop polling for AVR status updates
-   */
-  stopPolling() {
-    if (this.statusPollingInterval) {
-      clearInterval(this.statusPollingInterval);
-      this.statusPollingInterval = null;
+  stopMonitoring(): void {
+    if (this.denonApi) {
+      this.denonApi.stopMonitoring();
     }
   }
   
   /**
-   * Refresh the AVR status
-   * @param silent If true, suppresses status update logging (for polling)
+   * Refresh the AVR status (now only used for initial status or manual refresh)
+   * Real-time updates come through the monitoring connection
    */
   async refreshStatus(silent: boolean = false): Promise<DenonAVRStatus> {
     if (this.simulationMode) {
@@ -157,7 +220,6 @@ class DenonAVRService {
           volume = results[0].value;
         } else {
           logger.error('Failed to get volume', { reason: results[0].reason });
-          // Keep the previous volume value if this failed
           volume = this.status.volume;
         }
         
@@ -185,7 +247,7 @@ class DenonAVRService {
       
       const prevStatus = { ...this.status };
       
-      // Only update status values that actually changed or if we're powered on
+      // Update status
       const newStatus = {
         isPoweredOn,
         volume: isPoweredOn ? volume : 0,
@@ -194,38 +256,18 @@ class DenonAVRService {
         soundMode: isPoweredOn ? soundMode : ''
       };
       
-      // Only update the status if we have valid data
-      if (isPoweredOn) {
-        this.status = newStatus;
-      } else if (prevStatus.isPoweredOn && !isPoweredOn) {
-        // If power state transitions from on to off, update the status
-        this.status = newStatus;
-      } else if (!prevStatus.isPoweredOn && !isPoweredOn) {
-        // If we're already reporting powered off and still get powered off, verify with an additional check
-        logger.debug('Double-checking power state since multiple off reports received');
-        const verifyPowerState = await this.denonApi.getPowerState();
-        
-        if (verifyPowerState) {
-          // If the verification shows it's actually on, update status
-          logger.info('Power state verification shows AVR is actually ON');
-          
-          // Force a complete refresh with the correct power state
-          return this.refreshStatus(silent);
-        } else {
-          // Confirmed it's off, update status
-          this.status = newStatus;
-        }
-      }
+      this.status = newStatus;
       
       // Only log if there's an actual change or if not in silent mode
       const hasChanged = JSON.stringify(prevStatus) !== JSON.stringify(this.status);
       
       if (hasChanged) {
-        // Always log state changes
-        logger.info('Denon AVR status changed', { 
+        logger.info('Denon AVR status refreshed with changes', { 
           previous: prevStatus,
           current: this.status
         });
+        // Publish the change if it's not from real-time monitoring
+        this.publishStatusChange();
       } else if (!silent) {
         logger.debug('Denon AVR status refreshed (no change)', { status: this.status });
       }
@@ -240,6 +282,12 @@ class DenonAVRService {
    * Get the current AVR status
    */
   getStatus(): DenonAVRStatus {
+    // If real-time monitoring is active, use cached status from monitoring
+    if (this.denonApi?.isMonitoringActive()) {
+      const cachedStatus = this.denonApi.getCachedStatus();
+      // Update our status with the real-time cached status
+      this.status = { ...cachedStatus };
+    }
     return this.status;
   }
   
@@ -258,11 +306,22 @@ class DenonAVRService {
     
     try {
       switch (command) {
-        case 'POWER_ON':
-          await this.denonApi.powerOn();
+        case 'POWER_ON': {
+          // Attempt Telnet power on
+          let telnetSuccess = false;
+          try {
+            telnetSuccess = await this.denonApi.powerOn();
+          } catch (err) {
+            logger.warn('Telnet POWER_ON failed, falling back to HTTP powerOn', { error: err });
+          }
+          if (!telnetSuccess) {
+            // Fallback to HTTP API
+            logger.info('Falling back to HTTP API for POWER_ON');
+            await this.httpApi.powerOn();
+          }
           this.status.isPoweredOn = true;
           break;
-          
+        }
         case 'POWER_OFF':
           await this.denonApi.powerOff();
           this.status.isPoweredOn = false;
@@ -271,20 +330,20 @@ class DenonAVRService {
         case 'VOLUME_UP':
           if (!this.status.isPoweredOn) return false;
           await this.denonApi.volumeUp();
-          this.status.volume = Math.min(100, this.status.volume + 2);
+          // Don't update local status - let real-time monitoring handle it
           break;
           
         case 'VOLUME_DOWN':
           if (!this.status.isPoweredOn) return false;
           await this.denonApi.volumeDown();
-          this.status.volume = Math.max(0, this.status.volume - 2);
+          // Don't update local status - let real-time monitoring handle it
           break;
           
         case 'SET_VOLUME':
           if (!this.status.isPoweredOn || !value) return false;
-          const volumeLevel = parseInt(value, 10);
+          const volumeLevel = parseFloat(value);
           await this.denonApi.setVolume(volumeLevel);
-          this.status.volume = volumeLevel;
+          // Don't update local status - let real-time monitoring handle it
           break;
           
         case 'MUTE_TOGGLE':
@@ -417,17 +476,17 @@ class DenonAVRService {
         
       case 'VOLUME_UP':
         if (!this.status.isPoweredOn) return;
-        this.status.volume = Math.min(100, this.status.volume + 2);
+        this.status.volume = Math.min(99, this.status.volume + 0.5);
         break;
         
       case 'VOLUME_DOWN':
         if (!this.status.isPoweredOn) return;
-        this.status.volume = Math.max(0, this.status.volume - 2);
+        this.status.volume = Math.max(0, this.status.volume - 0.5);
         break;
         
       case 'SET_VOLUME':
         if (!this.status.isPoweredOn || !value) return;
-        this.status.volume = parseInt(value, 10);
+        this.status.volume = parseFloat(value);
         break;
         
       case 'MUTE_TOGGLE':
@@ -514,6 +573,51 @@ class DenonAVRService {
    */
   isConnectedToAVR(): boolean {
     return this.isConnected || this.simulationMode;
+  }
+
+  /**
+   * Check if AVR is reachable (TCP ping)
+   */
+  async isReachable(): Promise<boolean> {
+    if (this.simulationMode) {
+      return true;
+    }
+    return new Promise(resolve => {
+      const socket = new net.Socket();
+      let resolved = false;
+      socket.setTimeout(500);
+      socket.once('connect', () => {
+        resolved = true;
+        socket.destroy();
+        resolve(true);
+      });
+      socket.once('timeout', () => {
+        if (!resolved) {
+          resolved = true;
+          socket.destroy();
+          resolve(false);
+        }
+      });
+      socket.once('error', () => {
+        if (!resolved) {
+          resolved = true;
+          socket.destroy();
+          resolve(false);
+        }
+      });
+      socket.connect(this.port, this.ip);
+    });
+  }
+
+  /**
+   * Cleanup method for graceful shutdown
+   */
+  cleanup(): void {
+    logger.info('Cleaning up Denon AVR service');
+    this.stopMonitoring();
+    if (this.denonApi) {
+      this.denonApi.removeAllListeners();
+    }
   }
 }
 

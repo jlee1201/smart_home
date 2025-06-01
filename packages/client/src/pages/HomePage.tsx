@@ -65,6 +65,22 @@ export function HomePage() {
             Open AVR Remote
           </Link>
         </Card>
+        
+        <Card
+          title="John's Remote"
+          subtitle="Combined TV & AVR control"
+        >
+          <p className="mb-4">
+            Combined remote with TV controls and AVR volume. Includes sync functionality.
+          </p>
+          <p className="mb-4 text-sm text-gray-600">
+            Status: TV {isTVConnected ? '✓' : '✗'} | AVR {isDenonAvrConnected ? '✓' : '✗'}
+          </p>
+          
+          <Link to="/johns-remote" className="farmhouse-btn farmhouse-btn-primary">
+            Open John's Remote
+          </Link>
+        </Card>
       </div>
     </div>
   );

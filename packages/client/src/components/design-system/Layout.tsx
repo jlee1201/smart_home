@@ -17,6 +17,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
           <nav className="farmhouse-nav header-nav">
             <Link to="/vizio-remote" className="farmhouse-nav-link">TV Remote</Link>
             <Link to="/denon-avr-remote" className="farmhouse-nav-link">AVR Remote</Link>
+            <Link to="/johns-remote" className="farmhouse-nav-link">John's Remote</Link>
           </nav>
         </div>
       </header>
