@@ -144,3 +144,6 @@ dist
 # Cache files
 .eslintcache
 .prettier-cache
+
+# Playwright screenshots
+playwright-scripts/screenshots/

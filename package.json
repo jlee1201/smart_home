@@ -23,10 +23,13 @@
     "format": "prettier --write \"packages/**/*.{ts,tsx,js,jsx,json,css,md}\"",
     "format:check": "prettier --check \"packages/**/*.{ts,tsx,js,jsx,json,css,md}\"",
     "kill-port": "yarn workspace server kill-port",
-    "stop": "docker-compose down"
+    "stop": "docker-compose down",
+    "visual:test": "node playwright-scripts/visual-test-helper.js",
+    "visual:capture": "node playwright-scripts/capture-johns-remote.js"
   },
   "devDependencies": {
     "@eslint/js": "^8.56.0",
+    "@playwright/test": "^1.52.0",
     "@types/eslint": "^8.44.0",
     "@types/eslint__js": "^8.42.3",
     "@typescript-eslint/eslint-plugin": "^6.17.0",
@@ -40,6 +43,7 @@
     "eslint-plugin-prettier": "^5.1.2",
     "eslint-plugin-react": "^7.33.2",
     "nodemon": "^3.0.0",
+    "playwright": "^1.52.0",
     "postcss": "^8.5.3",
     "prettier": "^3.1.1",
     "tailwindcss": "^4.1.4",

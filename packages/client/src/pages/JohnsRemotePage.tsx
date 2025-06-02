@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { gql, useMutation, useQuery, useSubscription } from '@apollo/client';
 import { Button, Card, ToggleButton } from '@design-system';
 import { Link } from 'react-router-dom';
@@ -385,6 +385,53 @@ export function JohnsRemotePage() {
     }
   };
 
+  // Setup drag-to-adjust AVR volume
+  const avrVolumeBarRef = useRef<HTMLDivElement>(null);
+  const avrIsDragging = useRef(false);
+  const avrLastTimeRef = useRef(0);
+
+  useEffect(() => {
+    const onPointerUp = () => { avrIsDragging.current = false; };
+    window.addEventListener('mouseup', onPointerUp);
+    window.addEventListener('touchend', onPointerUp);
+    return () => {
+      window.removeEventListener('mouseup', onPointerUp);
+      window.removeEventListener('touchend', onPointerUp);
+    };
+  }, []);
+
+  const updateAvrVolumeFromPointer = (clientX: number) => {
+    const rect = avrVolumeBarRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    let percent = ((clientX - rect.left) / rect.width) * 100;
+    percent = Math.max(0, Math.min(100, percent));
+    const vol = Math.round(percent);
+    setAvrVolume(vol);
+    // Throttle backend calls to ~1 per 100ms
+    const now = Date.now();
+    if (now - avrLastTimeRef.current >= 100) {
+      avrLastTimeRef.current = now;
+      handleAvrCommand('SET_VOLUME', vol.toString());
+    }
+  };
+
+  // Dynamically compute how many bars fit the AVR container width
+  const [avrBarCount, setAvrBarCount] = useState(20);
+  useEffect(() => {
+    if (!avrVolumeBarRef.current) return;
+    const obs = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        const width = entry.contentRect.width;
+        const gap = 2; // px (smaller gap)
+        const barWidth = 6; // px (slightly narrower bars)
+        const count = Math.max(1, Math.floor((width + gap) / (barWidth + gap)));
+        setAvrBarCount(count);
+      }
+    });
+    obs.observe(avrVolumeBarRef.current);
+    return () => { obs.disconnect(); };
+  }, [avrVolumeBarRef]);
+
   // Connection Status
   const isTVConnected = tvQueryData?.tvConnectionStatus?.connected === true;
   const isAVRConnected = avrQueryData?.denonAvrConnectionStatus?.connected === true;
@@ -441,7 +488,7 @@ export function JohnsRemotePage() {
       )}
       
       <div className="flex justify-center mt-6">
-        <div className="relative w-full max-w-sm bg-slate-900 rounded-3xl px-6 pt-6 pb-10 shadow-xl">
+        <div className="relative w-full bg-slate-900 rounded-3xl px-6 pt-6 pb-10 shadow-xl">
           {/* Header */}
           <div className="text-center mb-4">
             <div className="text-white font-bold text-2xl tracking-wider">JOHN'S</div>
@@ -566,19 +613,28 @@ export function JohnsRemotePage() {
                 <FaVolumeDown className="text-xl" />
               </Button>
               
-              <div className="flex items-end justify-center gap-1 h-10 flex-1">
-                {Array.from({ length: 20 }, (_, i) => {
-                  const barLevel = (i + 1) * 5;
+              <div
+                ref={avrVolumeBarRef}
+                onMouseDown={e => { avrIsDragging.current = true; updateAvrVolumeFromPointer(e.clientX); }}
+                onMouseMove={e => { if (avrIsDragging.current) updateAvrVolumeFromPointer(e.clientX); }}
+                onTouchStart={e => { avrIsDragging.current = true; updateAvrVolumeFromPointer(e.touches[0].clientX); }}
+                onTouchMove={e => { if (avrIsDragging.current) updateAvrVolumeFromPointer(e.touches[0].clientX); }}
+                style={{ cursor: 'ew-resize', flex: '1 1 0' }}
+                className="flex items-end justify-between h-10 px-1"
+              >
+                {Array.from({ length: avrBarCount }, (_, i) => {
+                  const step = 100 / avrBarCount;
+                  const barLevel = (i + 1) * step;
                   const isActive = avrVolume >= barLevel;
                   const barHeight = `${10 + (i * 1.5)}px`;
-                  
+
                   return (
                     <div
                       key={i}
                       className="transition-all duration-200"
                       style={{
-                        width: '8px',
                         height: barHeight,
+                        width: '6px',
                         backgroundColor: isActive 
                           ? (avrIsMuted ? '#BB8274' : '#6A869C')
                           : '#4F4F4F',
