@@ -30,6 +30,7 @@ const TV_STATUS_QUERY = gql`
       isMuted
       input
       currentApp
+      speakersOn
     }
     tvConnectionStatus {
       connected
@@ -46,6 +47,7 @@ const TV_STATUS_SUBSCRIPTION = gql`
       isMuted
       input
       currentApp
+      speakersOn
     }
   }
 `;
@@ -80,6 +82,7 @@ const APP_CHANGED_SUBSCRIPTION = gql`
         isMuted
         input
         currentApp
+        speakersOn
       }
     }
   }
@@ -92,6 +95,7 @@ type TVStatus = {
   isMuted: boolean;
   input: string;
   currentApp: string;
+  speakersOn: boolean;
 };
 
 type ErrorLog = {
@@ -179,6 +183,7 @@ export function VizioRemotePage() {
   const [isPoweredOn, setIsPoweredOn] = useState(false);
   const [currentInput, setCurrentInput] = useState('HDMI_1');
   const [currentApp, setCurrentApp] = useState('Unknown');
+  const [speakersOn, setSpeakersOn] = useState(true);
   
   // Subscribe to button debug information
   useSubscription(BUTTON_DEBUG_SUBSCRIPTION, {
@@ -206,6 +211,7 @@ export function VizioRemotePage() {
         setIsMuted(data.tvStatus.isMuted);
         setCurrentInput(data.tvStatus.input);
         setCurrentApp(data.tvStatus.currentApp);
+        setSpeakersOn(data.tvStatus.speakersOn);
       }
     },
     onError: (error) => {
@@ -227,6 +233,7 @@ export function VizioRemotePage() {
         setIsMuted(status.isMuted);
         setCurrentInput(status.input);
         setCurrentApp(status.currentApp);
+        setSpeakersOn(status.speakersOn);
       }
     },
     onError: (error) => {
@@ -271,6 +278,7 @@ export function VizioRemotePage() {
           setIsMuted(tvStatus.isMuted);
           setCurrentInput(tvStatus.input);
           setCurrentApp(tvStatus.currentApp);
+          setSpeakersOn(tvStatus.speakersOn);
         }
       }
     },
@@ -289,6 +297,7 @@ export function VizioRemotePage() {
       setIsMuted(status.isMuted);
       setCurrentInput(status.input);
       setCurrentApp(status.currentApp);
+      setSpeakersOn(status.speakersOn);
     }
   }, [subscriptionData]);
   
@@ -410,7 +419,7 @@ export function VizioRemotePage() {
             </div>
             <div className="text-sm">
               <div><strong>Input:</strong> {currentInput.replace('_', ' ')}</div>
-              <div><strong>Volume:</strong> {volume}% {isMuted ? '(Muted)' : ''}</div>
+              <div><strong>Volume:</strong> {!speakersOn ? 'Speakers Off' : `${volume}% ${isMuted ? '(Muted)' : ''}`}</div>
               {currentInput === 'TV' && channel && <div><strong>Channel:</strong> {channel}</div>}
               {currentInput === 'SMARTCAST' && currentApp && currentApp !== 'Unknown' && (
                 <div><strong>App:</strong> {currentApp}</div>
@@ -481,16 +490,18 @@ export function VizioRemotePage() {
             </div>
           </div>
           
-          {/* Volume Control with Bar Graph Style */}
-          <VolumeBar
-            volume={volume}
-            isMuted={isMuted}
-            onVolumeDown={() => handleCommand('VOLUME_DOWN')}
-            onVolumeUp={() => handleCommand('VOLUME_UP')}
-            onVolumeChange={handleVolumeChange}
-            disabled={loading || !isPoweredOn}
-            title="Volume Control"
-          />
+          {/* Volume Control with Bar Graph Style - Only show if speakers are on */}
+          {speakersOn && (
+            <VolumeBar
+              volume={volume}
+              isMuted={isMuted}
+              onVolumeDown={() => handleCommand('VOLUME_DOWN')}
+              onVolumeUp={() => handleCommand('VOLUME_UP')}
+              onVolumeChange={handleVolumeChange}
+              disabled={loading || !isPoweredOn}
+              title="Volume Control"
+            />
+          )}
           
           {/* Navigation and Channel Controls */}
           <div className="flex justify-between mb-6">

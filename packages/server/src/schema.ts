@@ -18,6 +18,7 @@ export const typeDefs = `#graphql
     input: String
     supportedInputs: [String]
     currentApp: String
+    speakersOn: Boolean
   }
 
   type TVConnectionStatus {

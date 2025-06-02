@@ -17,6 +17,7 @@ const TV_STATUS_QUERY = gql`
       isMuted
       input
       currentApp
+      speakersOn
     }
     tvConnectionStatus {
       connected
@@ -48,6 +49,7 @@ const TV_STATUS_SUBSCRIPTION = gql`
       isMuted
       input
       currentApp
+      speakersOn
     }
   }
 `;
@@ -101,6 +103,7 @@ type TVStatus = {
   isMuted: boolean;
   input: string;
   currentApp: string;
+  speakersOn: boolean;
 };
 
 type DenonAVRStatus = {
@@ -198,6 +201,7 @@ export function JohnsRemotePage() {
   const [tvIsPoweredOn, setTvIsPoweredOn] = useState(false);
   const [tvCurrentInput, setTvCurrentInput] = useState('HDMI_1');
   const [tvCurrentApp, setTvCurrentApp] = useState('Unknown');
+  const [tvSpeakersOn, setTvSpeakersOn] = useState(true);
 
   // AVR State
   const [avrVolume, setAvrVolume] = useState(50.0);
@@ -221,6 +225,7 @@ export function JohnsRemotePage() {
         setTvIsMuted(data.tvStatus.isMuted);
         setTvCurrentInput(data.tvStatus.input);
         setTvCurrentApp(data.tvStatus.currentApp);
+        setTvSpeakersOn(data.tvStatus.speakersOn);
       }
     },
     onError: (error) => {
@@ -262,6 +267,7 @@ export function JohnsRemotePage() {
         setTvIsMuted(status.isMuted);
         setTvCurrentInput(status.input);
         setTvCurrentApp(status.currentApp);
+        setTvSpeakersOn(status.speakersOn);
       }
     },
     onError: (error) => {

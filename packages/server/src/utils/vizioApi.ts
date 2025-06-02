@@ -561,6 +561,103 @@ export class VizioAPI {
   }
   
   /**
+   * Get speakers status (whether TV speakers are on or off)
+   * Since the Vizio SmartCast API doesn't expose speaker settings directly,
+   * we'll use an indirect method: check if volume is enabled/disabled
+   */
+  async getSpeakersStatus(): Promise<boolean> {
+    try {
+      // Get the volume response to check if volume controls are enabled
+      const volumeResponse = await this.sendRequest('/menu_native/dynamic/tv_settings/audio/volume');
+      logger.debug('Volume response for speaker detection:', { volumeResponse });
+      
+      if (volumeResponse && volumeResponse.ITEMS && volumeResponse.ITEMS.length > 0) {
+        const volumeItem = volumeResponse.ITEMS[0];
+        
+        // Check if the volume control is disabled - this often indicates speakers are off
+        if (volumeItem.ENABLED === 'FALSE' || volumeItem.ENABLED === false) {
+          logger.debug('Volume control is disabled, speakers are likely off');
+          return false;
+        }
+        
+        // Additional check: if volume is 0 and can't be changed, speakers might be off
+        if (volumeItem.VALUE === 0 && volumeItem.ENABLED === 'FALSE') {
+          logger.debug('Volume is 0 and disabled, speakers are off');
+          return false;
+        }
+      }
+      
+      // Try the original endpoints as backup
+      const possibleEndpoints = [
+        '/menu_native/dynamic/tv_settings/audio/speakers',
+        '/menu_native/dynamic/tv_settings/audio/output',
+        '/menu_native/dynamic/tv_settings/audio/audio_output',
+        '/menu_native/dynamic/tv_settings/audio',
+        '/menu_native/dynamic/tv_settings/audio/sound_output'
+      ];
+      
+      for (const endpoint of possibleEndpoints) {
+        try {
+          const response = await this.sendRequest(endpoint);
+          logger.debug(`Trying speaker endpoint ${endpoint}:`, { response });
+          
+          if (response && response.ITEMS && response.ITEMS.length > 0) {
+            // Look for speaker-related items
+            const speakersItem = response.ITEMS.find((item: any) => 
+              item.NAME && (
+                item.NAME.toLowerCase().includes('speaker') || 
+                item.NAME.toLowerCase().includes('output') ||
+                item.CNAME === 'speakers' ||
+                item.CNAME === 'output' ||
+                item.CNAME === 'audio_output'
+              )
+            );
+            
+            if (speakersItem) {
+              const value = speakersItem.VALUE;
+              logger.debug(`Found speaker setting: ${speakersItem.NAME} = ${value}`);
+              
+              if (typeof value === 'string') {
+                const lowerValue = value.toLowerCase();
+                // Check for common "off" values
+                if (lowerValue === 'off' || lowerValue === '0' || lowerValue === 'disabled' || lowerValue === 'none') {
+                  return false;
+                }
+                // Check for common "on" values  
+                if (lowerValue === 'on' || lowerValue === '1' || lowerValue === 'enabled' || lowerValue === 'speakers') {
+                  return true;
+                }
+              } else if (typeof value === 'number') {
+                return value !== 0;
+              }
+            }
+            
+            // If we got items but no specific speaker item, log them for debugging
+            logger.debug(`Audio endpoint ${endpoint} items:`, { 
+              items: response.ITEMS.map((item: any) => ({ 
+                name: item.NAME, 
+                cname: item.CNAME, 
+                value: item.VALUE 
+              }))
+            });
+          }
+        } catch (endpointError) {
+          // Expected for most endpoints - they won't exist
+          logger.debug(`Endpoint ${endpoint} not available`);
+        }
+      }
+      
+      logger.debug('Could not determine speakers status from any method, assuming speakers are on');
+      return true; // Default to assuming speakers are on if we can't determine
+    } catch (error) {
+      logger.debug('Error getting speakers status, assuming speakers are on', { 
+        error: error instanceof Error ? error.message : String(error) 
+      });
+      return true; // Default to assuming speakers are on if we can't determine
+    }
+  }
+  
+  /**
    * Get current input
    */
   async getCurrentInput(): Promise<string> {

@@ -11,6 +11,7 @@ export type TVStatus = {
   input: string;
   supportedInputs: string[];
   currentApp: string;
+  speakersOn: boolean;
 };
 
 class TVService {
@@ -25,7 +26,8 @@ class TVService {
     isMuted: false,
     input: 'HDMI1',
     supportedInputs: ['HDMI1', 'HDMI2', 'HDMI3', 'HDMI4'],
-    currentApp: 'Unknown'
+    currentApp: 'Unknown',
+    speakersOn: true
   };
   private statusPollingInterval: NodeJS.Timeout | null = null;
   
@@ -38,7 +40,8 @@ class TVService {
       isMuted: false,
       input: 'HDMI1',
       supportedInputs: ['HDMI1', 'HDMI2', 'HDMI3', 'HDMI4'],
-      currentApp: 'Unknown'
+      currentApp: 'Unknown',
+      speakersOn: true
     };
     
     // Only enter simulation mode if explicitly set to 'false'
@@ -330,6 +333,16 @@ class TVService {
             this.checkForAuthError(error);
           }
         }
+        
+        if (this.hasValidAuthToken) {
+          try {
+            const speakersOn = await this.vizioApi.getSpeakersStatus();
+            this.status.speakersOn = speakersOn;
+          } catch (error: any) {
+            logger.warn('Error getting speakers status', { error: error?.message || 'Empty error' });
+            this.checkForAuthError(error);
+          }
+        }
 
         // Get available inputs from the TV if supported
         if (this.hasValidAuthToken) {
@@ -586,6 +599,14 @@ class TVService {
           this.status.volume = Math.max(0, this.status.volume - 5);
           break;
           
+        case 'SET_VOLUME':
+          if (!this.status.isPoweredOn || !value) return false;
+          const volumeLevel = parseInt(value, 10);
+          if (isNaN(volumeLevel) || volumeLevel < 0 || volumeLevel > 100) return false;
+          await this.vizioApi.setVolume(volumeLevel);
+          this.status.volume = volumeLevel;
+          break;
+          
         case 'MUTE':
           if (!this.status.isPoweredOn) return false;
           await this.vizioApi.toggleMute();
@@ -704,6 +725,14 @@ class TVService {
       case 'VOLUME_DOWN':
         if (this.status.isPoweredOn) {
           this.status.volume = Math.max(0, this.status.volume - 5);
+        }
+        break;
+      case 'SET_VOLUME':
+        if (this.status.isPoweredOn && value) {
+          const volumeLevel = parseInt(value, 10);
+          if (!isNaN(volumeLevel) && volumeLevel >= 0 && volumeLevel <= 100) {
+            this.status.volume = volumeLevel;
+          }
         }
         break;
       case 'MUTE':

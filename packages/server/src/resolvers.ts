@@ -101,7 +101,7 @@ type Resolvers = {
     tvConnectionStatus: () => { connected: boolean };
     denonAvrStatus: () => any;
     denonAvrConnectionStatus: () => { connected: boolean };
-    denonAvrReachable: () => boolean;
+    denonAvrReachable: () => Promise<boolean>;
     errorLogs: () => { id: string; timestamp: number; message: string; details?: string }[];
   };
   Mutation: {
@@ -379,7 +379,7 @@ export const resolvers: Resolvers = {
         });
       }
     },
-    clearErrorLogs: async (_, args, { pubsub }) => {
+    clearErrorLogs: async (_, _args, { pubsub }) => {
       try {
         errorLogs.length = 0; // Clear the array
         await pubsub.publish(ERROR_LOG_CHANNEL, { errorLogChanged: errorLogs });
@@ -389,7 +389,7 @@ export const resolvers: Resolvers = {
         return false;
       }
     },
-    syncDevices: async (_, args, { pubsub }) => {
+    syncDevices: async (_, _args, { pubsub }) => {
       try {
         logger.info('Starting "All On" operation for John\'s Remote');
         
