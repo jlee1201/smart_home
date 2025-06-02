@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { gql, useMutation, useQuery, useSubscription } from '@apollo/client';
-import { Button, Card, ToggleButton } from '@design-system';
+import { Button, Card, ToggleButton, VolumeBar } from '@design-system';
 import { Link } from 'react-router-dom';
 import { FaPowerOff, FaVolumeUp, FaVolumeDown, FaVolumeMute, FaVolumeOff, FaArrowLeft, 
          FaHome, FaBars, FaInfoCircle, FaBackspace, FaList, FaFastBackward, FaPlay, FaPause, FaStop, 
@@ -385,52 +385,11 @@ export function JohnsRemotePage() {
     }
   };
 
-  // Setup drag-to-adjust AVR volume
-  const avrVolumeBarRef = useRef<HTMLDivElement>(null);
-  const avrIsDragging = useRef(false);
-  const avrLastTimeRef = useRef(0);
-
-  useEffect(() => {
-    const onPointerUp = () => { avrIsDragging.current = false; };
-    window.addEventListener('mouseup', onPointerUp);
-    window.addEventListener('touchend', onPointerUp);
-    return () => {
-      window.removeEventListener('mouseup', onPointerUp);
-      window.removeEventListener('touchend', onPointerUp);
-    };
-  }, []);
-
-  const updateAvrVolumeFromPointer = (clientX: number) => {
-    const rect = avrVolumeBarRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    let percent = ((clientX - rect.left) / rect.width) * 100;
-    percent = Math.max(0, Math.min(100, percent));
-    const vol = Math.round(percent);
+  // Handle AVR volume change from drag
+  const handleAvrVolumeChange = (vol: number) => {
     setAvrVolume(vol);
-    // Throttle backend calls to ~1 per 100ms
-    const now = Date.now();
-    if (now - avrLastTimeRef.current >= 100) {
-      avrLastTimeRef.current = now;
-      handleAvrCommand('SET_VOLUME', vol.toString());
-    }
+    handleAvrCommand('SET_VOLUME', vol.toString());
   };
-
-  // Dynamically compute how many bars fit the AVR container width
-  const [avrBarCount, setAvrBarCount] = useState(20);
-  useEffect(() => {
-    if (!avrVolumeBarRef.current) return;
-    const obs = new ResizeObserver(entries => {
-      for (const entry of entries) {
-        const width = entry.contentRect.width;
-        const gap = 2; // px (smaller gap)
-        const barWidth = 6; // px (slightly narrower bars)
-        const count = Math.max(1, Math.floor((width + gap) / (barWidth + gap)));
-        setAvrBarCount(count);
-      }
-    });
-    obs.observe(avrVolumeBarRef.current);
-    return () => { obs.disconnect(); };
-  }, [avrVolumeBarRef]);
 
   // Connection Status
   const isTVConnected = tvQueryData?.tvConnectionStatus?.connected === true;
@@ -597,65 +556,15 @@ export function JohnsRemotePage() {
           </div>
           
           {/* AVR Volume Control */}
-          <div className="mb-6 w-full">
-            <div className="text-white mb-3 font-medium text-center">AVR Volume Control</div>
-            
-            <div className="text-center text-white text-lg font-bold mb-3">
-              {avrVolume}{avrIsMuted ? ' (Muted)' : ''}
-            </div>
-            
-            <div className="flex items-end justify-between gap-4 w-full">
-              <Button 
-                className="w-14 h-14 rounded-lg bg-slate-700 hover:bg-slate-600 text-white shadow-md flex items-center justify-center flex-shrink-0"
-                onClick={() => handleAvrCommand('VOLUME_DOWN')}
-                disabled={loading || !avrIsPoweredOn}
-              >
-                <FaVolumeDown className="text-xl" />
-              </Button>
-              
-              <div
-                ref={avrVolumeBarRef}
-                onMouseDown={e => { avrIsDragging.current = true; updateAvrVolumeFromPointer(e.clientX); }}
-                onMouseMove={e => { if (avrIsDragging.current) updateAvrVolumeFromPointer(e.clientX); }}
-                onTouchStart={e => { avrIsDragging.current = true; updateAvrVolumeFromPointer(e.touches[0].clientX); }}
-                onTouchMove={e => { if (avrIsDragging.current) updateAvrVolumeFromPointer(e.touches[0].clientX); }}
-                style={{ cursor: 'ew-resize', flex: '1 1 0' }}
-                className="flex items-end justify-between h-10 px-1"
-              >
-                {Array.from({ length: avrBarCount }, (_, i) => {
-                  const step = 100 / avrBarCount;
-                  const barLevel = (i + 1) * step;
-                  const isActive = avrVolume >= barLevel;
-                  const barHeight = `${10 + (i * 1.5)}px`;
-
-                  return (
-                    <div
-                      key={i}
-                      className="transition-all duration-200"
-                      style={{
-                        height: barHeight,
-                        width: '6px',
-                        backgroundColor: isActive 
-                          ? (avrIsMuted ? '#BB8274' : '#6A869C')
-                          : '#4F4F4F',
-                        opacity: isActive ? (avrIsMuted ? 0.7 : 1) : 0.3,
-                        borderRadius: '2px',
-                        boxShadow: isActive && !avrIsMuted ? '0 0 4px rgba(106, 134, 156, 0.4)' : 'none'
-                      }}
-                    />
-                  );
-                })}
-              </div>
-              
-              <Button 
-                className="w-14 h-14 rounded-lg bg-slate-700 hover:bg-slate-600 text-white shadow-md flex items-center justify-center flex-shrink-0"
-                onClick={() => handleAvrCommand('VOLUME_UP')}
-                disabled={loading || !avrIsPoweredOn}
-              >
-                <FaVolumeUp className="text-xl" />
-              </Button>
-            </div>
-          </div>
+          <VolumeBar
+            volume={avrVolume}
+            isMuted={avrIsMuted}
+            onVolumeDown={() => handleAvrCommand('VOLUME_DOWN')}
+            onVolumeUp={() => handleAvrCommand('VOLUME_UP')}
+            onVolumeChange={handleAvrVolumeChange}
+            disabled={loading || !avrIsPoweredOn}
+            title="AVR Volume Control"
+          />
           
           {/* Navigation D-Pad */}
           <div className="flex justify-center mb-6">

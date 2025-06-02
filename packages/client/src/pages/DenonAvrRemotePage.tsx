@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { gql, useMutation, useQuery, useSubscription } from '@apollo/client';
-import { Button, Card, Input, ToggleButton } from '@design-system';
+import { Button, Card, Input, ToggleButton, VolumeBar } from '@design-system';
 import { FaPowerOff, FaVolumeUp, FaVolumeDown, FaVolumeMute, FaVolumeOff, FaExchangeAlt, 
          FaMusic, FaFilm, FaGamepad, FaCompactDisc, FaMicrophone, FaTv, FaSatelliteDish,
          FaBluetooth, FaNetworkWired, FaArrowUp, FaArrowDown, FaArrowLeft, FaArrowRight,
@@ -220,6 +220,12 @@ export function DenonAvrRemotePage() {
     }
   };
 
+  // Handle AVR volume change from drag/click
+  const handleVolumeChange = (vol: number) => {
+    setVolume(vol);
+    handleCommand('SET_VOLUME', vol.toString());
+  };
+
   const isAVRReachable = queryData?.denonAvrReachable === true;
   const loading = queryLoading || commandLoading;
   
@@ -301,61 +307,15 @@ export function DenonAvrRemotePage() {
           </div>
           
           {/* Volume Control with Bar Graph Style */}
-          <div className="mb-6 w-full">
-            <div className="text-white mb-3 font-medium text-center">Volume Control</div>
-            
-            {/* Volume level display */}
-            <div className="text-center text-white text-lg font-bold mb-3">
-              {volume}{isMuted ? ' (Muted)' : ''}
-            </div>
-            
-            {/* Horizontal layout: Vol Down | Bar Graph | Vol Up */}
-            <div className="flex items-end justify-between gap-4 w-full">
-              {/* Volume Down Button */}
-              <Button 
-                className="w-14 h-14 rounded-lg bg-slate-700 hover:bg-slate-600 text-white shadow-md flex items-center justify-center flex-shrink-0"
-                onClick={() => handleCommand('VOLUME_DOWN')}
-                disabled={loading || !isPoweredOn}
-              >
-                <FaVolumeDown className="text-xl" />
-              </Button>
-              
-              {/* Bar graph style volume visualization */}
-              <div className="flex items-end justify-center gap-1 h-10 flex-1">
-                {Array.from({ length: 20 }, (_, i) => {
-                  const barLevel = (i + 1) * 5; // Each bar represents 5 volume levels (0-100)
-                  const isActive = volume >= barLevel;
-                  const barHeight = `${10 + (i * 1.5)}px`; // Reduced height progression (50% of original)
-                  
-                  return (
-                    <div
-                      key={i}
-                      className="transition-all duration-200"
-                      style={{
-                        width: '8px',
-                        height: barHeight,
-                        backgroundColor: isActive 
-                          ? (isMuted ? '#BB8274' : '#6A869C') // terracotta when muted, blue when normal
-                          : '#4F4F4F', // farmhouse-charcoal for inactive bars
-                        opacity: isActive ? (isMuted ? 0.7 : 1) : 0.3,
-                        borderRadius: '2px',
-                        boxShadow: isActive && !isMuted ? '0 0 4px rgba(106, 134, 156, 0.4)' : 'none'
-                      }}
-                    />
-                  );
-                })}
-              </div>
-              
-              {/* Volume Up Button */}
-              <Button 
-                className="w-14 h-14 rounded-lg bg-slate-700 hover:bg-slate-600 text-white shadow-md flex items-center justify-center flex-shrink-0"
-                onClick={() => handleCommand('VOLUME_UP')}
-                disabled={loading || !isPoweredOn}
-              >
-                <FaVolumeUp className="text-xl" />
-              </Button>
-            </div>
-          </div>
+          <VolumeBar
+            volume={volume}
+            isMuted={isMuted}
+            onVolumeDown={() => handleCommand('VOLUME_DOWN')}
+            onVolumeUp={() => handleCommand('VOLUME_UP')}
+            onVolumeChange={handleVolumeChange}
+            disabled={loading || !isPoweredOn}
+            title="Volume Control"
+          />
           
           {/* Input Selection */}
           <div className="mb-6">
