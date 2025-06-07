@@ -4,18 +4,18 @@ import { logger } from '../utils/logger.js';
 export type TVSettingsInput = {
   ip: string;
   authToken?: string | null;
-  port?: number | null;
+  port?: number;
   deviceId?: string | null;
   deviceName?: string | null;
 };
 
 // Initialize in-memory settings from environment variables if available
-let inMemorySettings: TVSettingsInput | null = process.env.VIZIO_TV_IP 
+let inMemorySettings: TVSettingsInput | null = process.env.VIZIO_TV_IP
   ? {
       ip: process.env.VIZIO_TV_IP,
       authToken: process.env.VIZIO_AUTH_TOKEN || null,
-      port: process.env.VIZIO_TV_PORT ? parseInt(process.env.VIZIO_TV_PORT) : undefined,
-      deviceName: process.env.VIZIO_DEVICE_NAME || undefined
+      port: process.env.VIZIO_TV_PORT ? parseInt(process.env.VIZIO_TV_PORT) : 7345,
+      deviceName: process.env.VIZIO_DEVICE_NAME || undefined,
     }
   : null;
 
@@ -33,7 +33,7 @@ class TVSettingsService {
         logger.warn('No database connection, using in-memory settings');
         return inMemorySettings;
       }
-      
+
       // Get the first settings record or null if none exist
       const settings = await prisma.tVSettings.findFirst();
       return settings;
@@ -53,9 +53,9 @@ class TVSettingsService {
         inMemorySettings = settings;
         return { ...settings, id: 0 }; // Fake ID
       }
-      
+
       const existingSettings = await prisma.tVSettings.findFirst();
-      
+
       if (existingSettings) {
         // Update existing settings
         const updated = await prisma.tVSettings.update({
@@ -65,7 +65,7 @@ class TVSettingsService {
             updatedAt: new Date(),
           },
         });
-        
+
         // Keep in-memory cache in sync
         inMemorySettings = settings;
         return updated;
@@ -74,7 +74,7 @@ class TVSettingsService {
         const created = await prisma.tVSettings.create({
           data: settings,
         });
-        
+
         // Keep in-memory cache in sync
         inMemorySettings = settings;
         return created;
@@ -101,9 +101,9 @@ class TVSettingsService {
           throw new Error('No settings exist in memory');
         }
       }
-      
+
       const existingSettings = await prisma.tVSettings.findFirst();
-      
+
       if (existingSettings) {
         // Update existing settings with new auth token
         const updated = await prisma.tVSettings.update({
@@ -113,7 +113,7 @@ class TVSettingsService {
             updatedAt: new Date(),
           },
         });
-        
+
         // Keep in-memory cache in sync
         if (inMemorySettings) {
           inMemorySettings.authToken = authToken;
@@ -121,12 +121,12 @@ class TVSettingsService {
           inMemorySettings = {
             ip: existingSettings.ip,
             authToken,
-            port: existingSettings.port || undefined,
+            port: existingSettings.port,
             deviceId: existingSettings.deviceId || undefined,
-            deviceName: existingSettings.deviceName || undefined
+            deviceName: existingSettings.deviceName || undefined,
           };
         }
-        
+
         return updated;
       } else {
         logger.error('Cannot save auth token - no TV settings exist');
@@ -143,4 +143,4 @@ class TVSettingsService {
   }
 }
 
-export const tvSettingsService = new TVSettingsService(); 
+export const tvSettingsService = new TVSettingsService();

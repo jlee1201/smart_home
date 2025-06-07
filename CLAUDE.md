@@ -189,3 +189,15 @@ Always check for supplemental instructions in the following locations:
 1. `.cursorrules` or `.cursor/rules/` directories if they exist
 2. Any files with names similar to `copilot-instructions.md` (e.g., in `.github/` directory)
 3. Other configuration files that might contain AI assistant instructions
+
+## Working with Terminal Commands
+
+- Run all terminal commands without asking for permission
+- The only exception is `git commit` - ask before committing unless explicitly mentioned in the user's prompt
+- If the user explicitly mentions to commit in their prompt, proceed without asking
+
+## Working with Terminal Commands
+
+- Run all terminal commands without asking for permission
+- The only exception is `git commit` - ask before committing unless explicitly mentioned in the user's prompt
+- If the user explicitly mentions to commit in their prompt, proceed without asking

@@ -23,6 +23,9 @@ export const typeDefs = `#graphql
 
   type TVConnectionStatus {
     connected: Boolean
+    lastDiscovery: String
+    discoveryMethod: String
+    responseTime: Int
   }
 
   type TVPairingResult {
@@ -44,6 +47,9 @@ export const typeDefs = `#graphql
 
   type DenonAVRConnectionStatus {
     connected: Boolean
+    lastDiscovery: String
+    discoveryMethod: String
+    responseTime: Int
   }
 
   type ErrorLog {
@@ -73,6 +79,7 @@ export const typeDefs = `#graphql
     completeTVPairing(pin: String!): TVPairingResult
     resetTVConnection: Boolean
     cancelTVPairing: Boolean
+    forceTVRediscovery: Boolean
     sendDenonAvrCommand(command: String!, value: String): Boolean
     clearErrorLogs: Boolean
     syncDevices: Boolean

@@ -38,22 +38,22 @@ export const addErrorToLog = async (pubsub: PubSub, message: string, details?: s
     id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
     timestamp: Date.now(),
     message,
-    details
+    details,
   };
-  
+
   // Add to beginning of array
   errorLogs.unshift(error);
-  
+
   // Trim array if it exceeds the maximum size
   if (errorLogs.length > MAX_ERROR_LOGS) {
     errorLogs.length = MAX_ERROR_LOGS;
   }
-  
+
   // Publish the updated error logs
   if (pubsub) {
     await pubsub.publish(ERROR_LOG_CHANNEL, { errorLogChanged: errorLogs });
   }
-  
+
   return error;
 };
 
@@ -66,27 +66,26 @@ export const addErrorToLog = async (pubsub: PubSub, message: string, details?: s
   } catch (error) {
     logger.warn('Failed to initialize TV service', { error });
   }
-  
+
   // Initialize Denon AVR service with detailed logging
   try {
     logger.info('Initializing Denon AVR service...');
-    logger.info('Environment settings', { 
+    logger.info('Environment settings', {
       ENABLE_AVR_CONNECTION: process.env.ENABLE_AVR_CONNECTION,
       simulationMode: process.env.ENABLE_AVR_CONNECTION !== 'true',
       DENON_AVR_IP: process.env.DENON_AVR_IP,
-      DENON_AVR_PORT: process.env.DENON_AVR_PORT
+      DENON_AVR_PORT: process.env.DENON_AVR_PORT,
     });
-    
+
     const initResult = await denonAvrService.init();
-    logger.info('Denon AVR service initialized', { 
-      success: initResult, 
-      isConnected: denonAvrService.isConnectedToAVR() 
+    logger.info('Denon AVR service initialized', {
+      success: initResult,
+      isConnected: denonAvrService.isConnectedToAVR(),
     });
-    
+
     // Get initial status
     const status = denonAvrService.getStatus();
     logger.info('Initial Denon AVR status', { status });
-    
   } catch (error) {
     logger.warn('Failed to initialize Denon AVR service', { error });
   }
@@ -98,9 +97,19 @@ type Resolvers = {
     hello: () => string;
     currentInput: () => string;
     tvStatus: () => any;
-    tvConnectionStatus: () => { connected: boolean };
+    tvConnectionStatus: () => Promise<{
+      connected: boolean;
+      lastDiscovery: string | null;
+      discoveryMethod: string | null;
+      responseTime: number | null;
+    }>;
     denonAvrStatus: () => any;
-    denonAvrConnectionStatus: () => { connected: boolean };
+    denonAvrConnectionStatus: () => Promise<{
+      connected: boolean;
+      lastDiscovery: string | null;
+      discoveryMethod: string | null;
+      responseTime: number | null;
+    }>;
     denonAvrReachable: () => Promise<boolean>;
     errorLogs: () => { id: string; timestamp: number; message: string; details?: string }[];
   };
@@ -110,11 +119,7 @@ type Resolvers = {
       args: { value: string },
       context: ResolverContext
     ) => Promise<string>;
-    sendTVCommand: (
-      parent: any,
-      args: TVCommandArgs,
-      context: ResolverContext
-    ) => Promise<boolean>;
+    sendTVCommand: (parent: any, args: TVCommandArgs, context: ResolverContext) => Promise<boolean>;
     sendDenonAvrCommand: (
       parent: any,
       args: DenonAvrCommandArgs,
@@ -127,59 +132,28 @@ type Resolvers = {
     ) => Promise<{ success: boolean; authToken: string }>;
     resetTVConnection: () => Promise<boolean>;
     cancelTVPairing: () => Promise<boolean>;
-    clearErrorLogs: (
-      parent: any,
-      args: any,
-      context: ResolverContext
-    ) => Promise<boolean>;
-    syncDevices: (
-      parent: any,
-      args: any,
-      context: ResolverContext
-    ) => Promise<boolean>;
+    forceTVRediscovery: () => Promise<boolean>;
+    clearErrorLogs: (parent: any, args: any, context: ResolverContext) => Promise<boolean>;
+    syncDevices: (parent: any, args: any, context: ResolverContext) => Promise<boolean>;
   };
   Subscription: {
     inputChanged: {
-      subscribe: (
-        parent: any,
-        args: any,
-        context: ResolverContext
-      ) => any;
+      subscribe: (parent: any, args: any, context: ResolverContext) => any;
     };
     tvStatusChanged: {
-      subscribe: (
-        parent: any,
-        args: any,
-        context: ResolverContext
-      ) => any;
+      subscribe: (parent: any, args: any, context: ResolverContext) => any;
     };
     denonAvrStatusChanged: {
-      subscribe: (
-        parent: any,
-        args: any,
-        context: ResolverContext
-      ) => any;
+      subscribe: (parent: any, args: any, context: ResolverContext) => any;
     };
     errorLogChanged: {
-      subscribe: (
-        parent: any,
-        args: any,
-        context: ResolverContext
-      ) => any;
+      subscribe: (parent: any, args: any, context: ResolverContext) => any;
     };
     buttonDebugInfo: {
-      subscribe: (
-        parent: any,
-        args: any,
-        context: ResolverContext
-      ) => any;
+      subscribe: (parent: any, args: any, context: ResolverContext) => any;
     };
     appChanged: {
-      subscribe: (
-        parent: any,
-        args: any,
-        context: ResolverContext
-      ) => any;
+      subscribe: (parent: any, args: any, context: ResolverContext) => any;
     };
   };
 };
@@ -191,17 +165,30 @@ export const resolvers: Resolvers = {
     hello: () => 'Hello from GraphQL!',
     currentInput: () => currentInput,
     tvStatus: () => tvService.getStatus(),
-    tvConnectionStatus: () => {
+    tvConnectionStatus: async () => {
       // When connection status is requested, ensure it reflects current reality
       // by actively checking if the TV is still connected
       const isConnected = tvService.isConnectedToTV();
-      logger.debug('TV connection status requested', { isConnected });
-      return { connected: isConnected };
+      const connectionInfo = await tvService.getConnectionInfo();
+      logger.debug('TV connection status requested', { isConnected, connectionInfo });
+      return {
+        connected: isConnected,
+        lastDiscovery: connectionInfo?.lastDiscovery || null,
+        discoveryMethod: connectionInfo?.discoveryMethod || null,
+        responseTime: connectionInfo?.responseTime || null,
+      };
     },
     denonAvrStatus: () => denonAvrService.getStatus(),
-    denonAvrConnectionStatus: () => ({
-      connected: denonAvrService.isConnectedToAVR()
-    }),
+    denonAvrConnectionStatus: async () => {
+      const isConnected = denonAvrService.isConnectedToAVR();
+      const connectionInfo = await denonAvrService.getConnectionInfo();
+      return {
+        connected: isConnected,
+        lastDiscovery: connectionInfo?.lastDiscovery || null,
+        discoveryMethod: connectionInfo?.discoveryMethod || null,
+        responseTime: connectionInfo?.responseTime || null,
+      };
+    },
     denonAvrReachable: () => denonAvrService.isReachable(),
     errorLogs: () => errorLogs,
   },
@@ -243,7 +230,7 @@ export const resolvers: Resolvers = {
 
         // Send the command to the TV service
         const success = await tvService.sendCommand(command, value);
-        
+
         // If command was successful, publish the updated status
         if (success) {
           const status = tvService.getStatus();
@@ -271,7 +258,7 @@ export const resolvers: Resolvers = {
 
         // Send the command to the Denon AVR service
         const success = await denonAvrService.sendCommand(command, value);
-        
+
         // If command was successful, publish the updated status
         if (success) {
           const status = denonAvrService.getStatus();
@@ -293,11 +280,11 @@ export const resolvers: Resolvers = {
       try {
         // Reset the connection first to ensure a clean pairing
         await tvService.resetTVConnection();
-        
+
         // Add a delay before initiating to give TV time to clear state
         logger.info('Waiting a moment before initiating pairing...');
         await new Promise(resolve => setTimeout(resolve, 2000));
-        
+
         // Try to cancel any existing pairing sessions directly
         const vizioApi = tvService.getVizioApi();
         if (vizioApi) {
@@ -307,31 +294,31 @@ export const resolvers: Resolvers = {
             // Add a short delay after cancellation
             await new Promise(resolve => setTimeout(resolve, 2000));
           } catch (cancelError) {
-            logger.warn('Error cancelling existing pairings, continuing anyway', { 
-              error: cancelError instanceof Error 
-                ? cancelError.message 
-                : String(cancelError)
+            logger.warn('Error cancelling existing pairings, continuing anyway', {
+              error: cancelError instanceof Error ? cancelError.message : String(cancelError),
             });
           }
         }
-        
+
         // Now try to initiate pairing
         const challengeCode = await tvService.initiatePairing();
         return { challengeCode };
       } catch (error) {
-        logger.error('Error initiating TV pairing', { 
-          error: error instanceof Error 
-            ? { message: error.message, stack: error.stack } 
-            : String(error)
+        logger.error('Error initiating TV pairing', {
+          error:
+            error instanceof Error ? { message: error.message, stack: error.stack } : String(error),
         });
-        
+
         // If there's a blocked error, provide more specific information
         if (error instanceof Error && error.message && error.message.includes('BLOCKED')) {
-          throw new GraphQLError('TV pairing is blocked. Please try resetting the TV connection or restarting your TV.', {
-            extensions: { code: ErrorCode.INTERNAL_ERROR },
-          });
+          throw new GraphQLError(
+            'TV pairing is blocked. Please try resetting the TV connection or restarting your TV.',
+            {
+              extensions: { code: ErrorCode.INTERNAL_ERROR },
+            }
+          );
         }
-        
+
         throw new GraphQLError('Failed to initiate TV pairing', {
           extensions: { code: ErrorCode.INTERNAL_ERROR },
         });
@@ -340,9 +327,9 @@ export const resolvers: Resolvers = {
     completeTVPairing: async (_, { pin }) => {
       try {
         const authToken = await tvService.completePairing(pin);
-        return { 
-          success: true, 
-          authToken 
+        return {
+          success: true,
+          authToken,
         };
       } catch (error: any) {
         logger.error('Error completing TV pairing', { error: error?.message || 'Unknown error' });
@@ -369,12 +356,29 @@ export const resolvers: Resolvers = {
           logger.warn('No Vizio API instance available to cancel pairing');
           throw new Error('TV connection not initialized');
         }
-        
+
         const success = await vizioApi.cancelPairing();
         return success;
       } catch (error: any) {
         logger.error('Error canceling TV pairing', { error: error?.message || 'Unknown error' });
         throw new GraphQLError('Failed to cancel TV pairing', {
+          extensions: { code: ErrorCode.INTERNAL_ERROR },
+        });
+      }
+    },
+    forceTVRediscovery: async () => {
+      try {
+        logger.info('Forcing TV rediscovery via GraphQL mutation');
+        const success = await tvService.forceRediscovery();
+        if (success) {
+          logger.info('TV rediscovery completed successfully');
+        } else {
+          logger.warn('TV rediscovery failed to find any valid TVs');
+        }
+        return success;
+      } catch (error: any) {
+        logger.error('Error during TV rediscovery', { error: error?.message || 'Unknown error' });
+        throw new GraphQLError('Failed to rediscover TV', {
           extensions: { code: ErrorCode.INTERNAL_ERROR },
         });
       }
@@ -392,13 +396,13 @@ export const resolvers: Resolvers = {
     syncDevices: async (_, _args, { pubsub }) => {
       try {
         logger.info('Starting "All On" operation for John\'s Remote');
-        
+
         // Get current status of both devices
         const tvStatus = tvService.getStatus();
         const avrStatus = denonAvrService.getStatus();
-        
+
         let needsAction = false;
-        
+
         // Step 1: Power on TV if not already on
         if (!tvStatus.isPoweredOn) {
           logger.info('Powering on TV');
@@ -412,7 +416,7 @@ export const resolvers: Resolvers = {
           // Wait a moment for TV to power on
           await new Promise(resolve => setTimeout(resolve, 1000));
         }
-        
+
         // Step 2: Power on Denon AVR if not already on
         if (!avrStatus.isPoweredOn) {
           logger.info('Powering on Denon AVR');
@@ -426,7 +430,7 @@ export const resolvers: Resolvers = {
           // Wait a moment for the AVR to power on
           await new Promise(resolve => setTimeout(resolve, 2000));
         }
-        
+
         // Step 3: Set Denon AVR to TV input if not already set
         if (avrStatus.input !== 'TV') {
           logger.info('Setting Denon AVR to TV input');
@@ -438,7 +442,7 @@ export const resolvers: Resolvers = {
           }
           needsAction = true;
         }
-        
+
         // Step 4: Set volume to 55 if AVR is powered on
         if (avrStatus.isPoweredOn || needsAction) {
           logger.info('Setting Denon AVR volume to 55');
@@ -450,23 +454,27 @@ export const resolvers: Resolvers = {
           }
           needsAction = true;
         }
-        
+
         if (needsAction) {
           logger.info('All On operation completed successfully');
         } else {
           logger.info('All On operation - no action needed, devices already in desired state');
         }
-        
+
         // Publish updated statuses
         const updatedTvStatus = tvService.getStatus();
         const updatedAvrStatus = denonAvrService.getStatus();
         await pubsub.publish(TV_STATUS_CHANNEL, { tvStatusChanged: updatedTvStatus });
         await pubsub.publish(DENON_AVR_STATUS_CHANNEL, { denonAvrStatusChanged: updatedAvrStatus });
-        
+
         return true;
       } catch (error) {
         logger.error('Error in syncDevices (All On) mutation', { error });
-        await addErrorToLog(pubsub, 'All On failed: Internal error occurred', JSON.stringify(error));
+        await addErrorToLog(
+          pubsub,
+          'All On failed: Internal error occurred',
+          JSON.stringify(error)
+        );
         return false;
       }
     },
