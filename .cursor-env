@@ -1,0 +1,23 @@
+# Cursor environment configuration
+# This file can be sourced to configure optimal settings for cursor agent
+
+# Use bash as the default shell
+export SHELL=/bin/bash
+
+# Disable pagers that cause hanging
+export PAGER="cat"
+export GIT_PAGER="cat" 
+export MANPAGER="cat"
+export DOCKER_CLI_HINTS="false"
+export LESS=""
+
+# Simple prompts
+export PS1='$ '
+export PS2='> '
+
+# Disable various features that might cause issues
+export TERM=dumb
+export NO_COLOR=1
+export FORCE_COLOR=0
+
+echo "Cursor environment configured - using bash with simple prompt" 

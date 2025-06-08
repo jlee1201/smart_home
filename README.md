@@ -160,10 +160,11 @@ If you prefer manual configuration or want to verify device addresses:
 - **Database**: PostgreSQL
 - **ORM**: Prisma
 - **Containerization**: Docker & Docker Compose
-- **TV Control**: Custom implementation of the Vizio SmartCast API with HTTPS validation
+- **TV Control**: Custom implementation of the Vizio SmartCast API with HTTPS validation and enhanced power state detection
 - **AVR Control**: Custom implementation of the Denon telnet protocol with real-time monitoring
 - **Device Discovery**: Intelligent network scanning using ARP table parsing, MAC address recognition, and protocol validation
 - **Auto-Recovery**: Self-healing connections that automatically rediscover devices on IP changes
+- **Power State Detection**: Multi-layer validation system that accurately determines device power status even when devices respond to API calls in standby mode
 
 ### Third-Party Resources
 
@@ -319,6 +320,7 @@ This means you can edit code in real-time and see changes without manually resta
 - **TV Not Connecting**: Ensure your TV is powered on and SmartCast is enabled
 - **Pairing Issues**: Try power cycling your TV and restarting the application
 - **Command Failures**: Some commands may not be supported by all Vizio TV models
+- **Incorrect Power Status**: The system now uses enhanced power state detection with multiple verification checks to accurately determine if the TV is actually on or in standby mode
 
 ### AVR-Specific Issues
 

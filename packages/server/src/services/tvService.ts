@@ -463,6 +463,10 @@ class TVService {
       // First try to get the power state
       try {
         const isPoweredOn = await this.vizioApi.getPowerState();
+        logger.debug('TV power state API response', {
+          isPoweredOn,
+          previousState: this.status.isPoweredOn,
+        });
         this.status.isPoweredOn = isPoweredOn;
       } catch (powerError: any) {
         logger.warn('Error getting power state', { error: powerError?.message || 'Empty error' });
@@ -484,8 +488,13 @@ class TVService {
           return this.status;
         }
 
-        // If we can't get power state but the TV responded at all, assume it's on
-        this.status.isPoweredOn = true;
+        // If we can't get power state due to network/connection errors,
+        // assume the TV is OFF since it's not responding
+        logger.info('Could not determine TV power state due to error, setting to OFF', {
+          previousState: this.status.isPoweredOn,
+          error: powerError?.message || 'Unknown error',
+        });
+        this.status.isPoweredOn = false;
       }
 
       // Only fetch other properties if the TV is on

@@ -7,24 +7,26 @@ import { logger } from './logger.js';
 export function applyTVFixes() {
   // Check if we need to patch the TV service
   // This is a simple check that will be executed when the server starts
-  
+
   logger.info('Applying special fixes for Vizio M65Q7-H1 firmware 1.710.30.5-1');
-  
+
   // Patch the global error handler to prevent TV API errors from crashing the server
   const originalConsoleError = console.error;
-  console.error = function(...args: any[]) {
+  console.error = function (...args: any[]) {
     // Ignore certain TV API errors that are non-critical
-    if (args[0] && typeof args[0] === 'string' && 
-        (args[0].includes('Vizio API error') || 
-         args[0].includes('TV might be off'))) {
+    if (
+      args[0] &&
+      typeof args[0] === 'string' &&
+      (args[0].includes('Vizio API error') || args[0].includes('TV might be off'))
+    ) {
       logger.warn('Suppressed TV API error (non-critical):', { message: args[0] });
       return;
     }
-    
+
     // Pass through all other errors
     originalConsoleError.apply(console, args);
   };
-  
+
   logger.info('TV fixes applied successfully');
 }
 
@@ -32,11 +34,8 @@ export function applyTVFixes() {
  * Fix TV status values for models that report incorrect status
  */
 export function fixTVStatus(status: any) {
-  // If we get a response at all, assume the TV is on
-  if (status && typeof status === 'object') {
-    status.isPoweredOn = true;
-  }
-  
+  // Don't override power state - let the actual API response determine it
+  // This function can be used for other TV-specific fixes if needed
   return status;
 }
 
@@ -45,13 +44,13 @@ export function fixTVStatus(status: any) {
  */
 export function handleTVApiError(error: any) {
   logger.warn('TV API error handled:', { error });
-  
+
   // Return sensible defaults instead of throwing errors
   return {
     isPoweredOn: true,
     volume: 50,
     isMuted: false,
     input: 'HDMI_1',
-    channel: '1'
+    channel: '1',
   };
-} 
+}

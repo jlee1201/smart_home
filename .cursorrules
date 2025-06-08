@@ -79,6 +79,16 @@
         "action": "plan_before_implementation",
         "auto": true
       }
+    },
+    {
+      "name": "Playwright Testing Priority",
+      "description": "Use Playwright for testing browser-based applications instead of asking user to manually test.",
+      "pattern": ".*",
+      "prompt": "When testing browser-based applications or web functionality:\n\n1. ALWAYS use Playwright to test the application automatically instead of asking the user to manually test\n2. Create or use existing Playwright scripts to verify functionality\n3. Capture console logs, button states, API responses, and visual elements\n4. Use Playwright to interact with the UI and verify expected behavior\n5. Only ask the user for manual testing if Playwright cannot adequately test the specific functionality\n6. When debugging issues, use Playwright to gather real-time data and logs\n7. Look for existing Playwright scripts in the playwright-scripts/ directory before creating new ones\n\nThis approach provides faster, more reliable testing feedback than manual user testing.",
+      "agent": {
+        "action": "use_playwright_testing",
+        "auto": true
+      }
     }
   ],
   "settings": {
